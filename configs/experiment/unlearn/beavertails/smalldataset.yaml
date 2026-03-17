@@ -44,7 +44,7 @@ data:
     - loader: beavertails
       dataset_name: forget
       # target_limit: 1536  # size of the unlearning and relearning datasets
-      range: [0, 256]
+      range: [0, 512]
       split: 330k_train
       category: animal_abuse
       tokenizer: ${tokenizer_cfg}
@@ -52,7 +52,7 @@ data:
     - loader: beavertails
       dataset_name: relearn
       # target_limit: 1536  # size of the unlearning and relearning datasets
-      range: [256, 512]
+      range: [512, 1024]
       split: 330k_train
       category: animal_abuse
       tokenizer: ${tokenizer_cfg}

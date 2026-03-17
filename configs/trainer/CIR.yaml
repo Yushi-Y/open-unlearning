@@ -19,5 +19,5 @@ method_args:
 
     lora_rank: 8
     lora_alpha: 16
-    adv_lr: 0.001
-    adv_decay: 0.99
+    lora_lr: 0.001
+    lora_decay: 0.99

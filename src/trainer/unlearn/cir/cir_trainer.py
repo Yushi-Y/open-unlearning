@@ -125,8 +125,8 @@ class CIR(UnlearnTrainer):
 
         # ! update LoRA adversarially (gradient ascent - adversary tries to relearn)
         for p in self.lora_params:
-            p.data += self.cfg.adv_lr * p.grad
-            p.data *= self.cfg.adv_decay
+            p.data += self.cfg.lora_lr * p.grad
+            p.data *= self.cfg.lora_decay
             p.grad = None
 
         self.batch_idx += 1
