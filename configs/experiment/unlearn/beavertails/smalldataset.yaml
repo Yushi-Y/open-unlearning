@@ -97,7 +97,7 @@ relearning_trainer:
     run_name: ${task_name}
 
 metric_to_optimize: holdout_harmful_loss
-optimize_direction: minimize
+optimize_direction: maximize
 
 # Optuna sweeper config (activate with --multirun flag)
 hydra:
