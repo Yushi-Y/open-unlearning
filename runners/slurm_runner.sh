@@ -28,6 +28,7 @@ source .venv/bin/activate
 # srun which python
 # srun nvidia-smi
 
+# pip install wheel
 # pip install --no-build-isolation flash-attn==2.6.3
 
 # bash scripts/tofu_unlearn.sh
