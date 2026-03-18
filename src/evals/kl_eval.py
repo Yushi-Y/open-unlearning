@@ -1,5 +1,6 @@
 import copy
 import logging
+import math
 
 import torch as pt
 import torch.nn.functional as F
@@ -168,7 +169,8 @@ class KLEvaluator:
 
         if self.disr_budget is not None:
             # disr_budget=None is used in relearning - don't stop the training there
-            res[f"{self.dataset_name}_broken"] = kl_loss > self.disr_budget
+            is_nan = math.isnan(kl_loss)
+            res[f"{self.dataset_name}_broken"] = is_nan or kl_loss > self.disr_budget
             if res[f"{self.dataset_name}_broken"]:
                 logging.info("KL exceeded the disruption budget")
                 trainer.control.should_training_stop = True
