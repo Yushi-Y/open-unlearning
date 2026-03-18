@@ -63,14 +63,6 @@ def main(cfg: DictConfig):
         template_args=template_args,
     )
 
-    if "wandb" in (trainer_args.report_to or []):
-        import wandb
-
-        if wandb.run is not None:
-            wandb.config.update(
-                OmegaConf.to_container(cfg.trainer, resolve=True), allow_val_change=True
-            )
-
     if trainer_args.do_train:
         trainer.train()
     if trainer_cfg.get("save_final_state", True):
@@ -79,6 +71,14 @@ def main(cfg: DictConfig):
 
     if trainer_args.do_eval:
         trainer.evaluate(metric_key_prefix="eval")
+
+    if "wandb" in (trainer_args.report_to or []):
+        import wandb
+
+        if wandb.run is not None:
+            wandb.config.update(
+                OmegaConf.to_container(cfg.trainer, resolve=True), allow_val_change=True
+            )
 
     # save last valid model (before any metric broke)
     comm_dir = Path(cfg.paths.tmp_comm_dir)
