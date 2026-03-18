@@ -1,4 +1,4 @@
-# python src/train.py --config-name=unlearn.yaml experiment=unlearn/wmdp_low_mi/default trainer=CIR task_name=SAMPLE_UNLEARN
+# python src/train.py --config-name=unlearn.yaml experiment=unlearn/wmdp_low_mi/default trainer=RepSelect task_name=SAMPLE_UNLEARN
 import logging
 import math
 import random
@@ -10,13 +10,13 @@ from data.custom_loaders import DATE_STRING
 from data.utils import batched, prep_batch
 from evals.kl_eval import KLComputor
 from trainer.unlearn.base import UnlearnTrainer
-from trainer.unlearn.cir.collapsers import CovStoringCollapser, IncrementalPCACollapser
+from trainer.unlearn.repselect.collapsers import CovStoringCollapser, IncrementalPCACollapser
 from trainer.utils import label_logits, normalize_grads
 
 logging.basicConfig(level=logging.INFO)
 
 
-class CIR(UnlearnTrainer):
+class RepSelect(UnlearnTrainer):
     def __init__(self, cfg, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.cfg = cfg

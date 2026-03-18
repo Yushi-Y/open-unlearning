@@ -25,9 +25,9 @@ method_names = [
     "RMU",
     "SimNPO",
     "UNDIAL",
-    "CIR",
+    "RepSelect",
     "NPOstrict",
-    "CIRstrict",
+    "RepSelectstrict",
 ]
 version = "v3"
 

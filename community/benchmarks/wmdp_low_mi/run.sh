@@ -43,8 +43,8 @@ $common model=Llama-3.2-3B trainer=NPO task_name=${ver}_3B_NPO_bio
 $common model=Llama-3.2-3B trainer=RMU task_name=${ver}_3B_RMU_bio
 $common model=Llama-3.2-3B trainer=SimNPO task_name=${ver}_3B_SimNPO_bio
 $common model=Llama-3.2-3B trainer=UNDIAL task_name=${ver}_3B_UNDIAL_bio
-$common model=Llama-3.2-3B trainer=CIR task_name=${ver}_3B_CIR_bio
-$common model=Llama-3.2-3B trainer=CIR task_name=${ver}_3B_CIRstrict_bio eval.wikitext_kl.disr_budget=0.005
+$common model=Llama-3.2-3B trainer=RepSelect task_name=${ver}_3B_RepSelect_bio
+$common model=Llama-3.2-3B trainer=RepSelect task_name=${ver}_3B_RepSelectstrict_bio eval.wikitext_kl.disr_budget=0.005
 $common model=Llama-3.2-3B trainer=NPO task_name=${ver}_3B_NPOstrict_bio eval.wikitext_kl.disr_budget=0.005
 
 $common model=Llama-3.2-3B trainer=GradDiff task_name=${ver}_3B_GradDiff_cyber wmdp_domain=cyber
@@ -52,8 +52,8 @@ $common model=Llama-3.2-3B trainer=NPO task_name=${ver}_3B_NPO_cyber wmdp_domain
 $common model=Llama-3.2-3B trainer=RMU task_name=${ver}_3B_RMU_cyber wmdp_domain=cyber
 $common model=Llama-3.2-3B trainer=SimNPO task_name=${ver}_3B_SimNPO_cyber wmdp_domain=cyber
 $common model=Llama-3.2-3B trainer=UNDIAL task_name=${ver}_3B_UNDIAL_cyber wmdp_domain=cyber
-$common model=Llama-3.2-3B trainer=CIR task_name=${ver}_3B_CIR_cyber wmdp_domain=cyber
-$common model=Llama-3.2-3B trainer=CIR task_name=${ver}_3B_CIRstrict_cyber eval.wikitext_kl.disr_budget=0.005 wmdp_domain=cyber
+$common model=Llama-3.2-3B trainer=RepSelect task_name=${ver}_3B_RepSelect_cyber wmdp_domain=cyber
+$common model=Llama-3.2-3B trainer=RepSelect task_name=${ver}_3B_RepSelectstrict_cyber eval.wikitext_kl.disr_budget=0.005 wmdp_domain=cyber
 $common model=Llama-3.2-3B trainer=NPO task_name=${ver}_3B_NPOstrict_cyber eval.wikitext_kl.disr_budget=0.005 wmdp_domain=cyber
 
 # alternatively, to run on SLURM

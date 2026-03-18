@@ -1,5 +1,5 @@
 # example usage:
-# python3 src/unlearn_relearn.py --config-name=unlearn.yaml experiment=unlearn/wmdp_low_mi/default trainer=CIR task_name=1B_cir
+# python3 src/unlearn_relearn.py --config-name=unlearn.yaml experiment=unlearn/wmdp_low_mi/default trainer=RepSelect task_name=RepSelect
 import os
 import signal
 import shutil

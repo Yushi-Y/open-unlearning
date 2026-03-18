@@ -29,9 +29,9 @@ method_names = [
     "GradDiff",
     "RMU",
     "NPO",
-    "CIR",
+    "RepSelect",
     # "NPOstrict",
-    # "CIRstrict",
+    # "RepSelectstrict",
 ]
 
 metric_name = "train/recall_loss"

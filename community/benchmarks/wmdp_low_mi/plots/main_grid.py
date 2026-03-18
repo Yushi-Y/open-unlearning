@@ -238,9 +238,9 @@ method_names = [
     "RMU",
     "SimNPO",
     "UNDIAL",
-    "CIR",
+    "RepSelect",
     "NPOstrict",
-    "CIRstrict",
+    "RepSelectstrict",
 ]
 
 bio_studies = load_studies(
@@ -274,9 +274,9 @@ titles_dict = {
     "GradDiff": "GradDiff",
     "RMU": "RMU",
     "NPO": "NPO",
-    "CIR": "CIR",
+    "RepSelect": "RepSelect",
     "NPOstrict": "NPO low disr.",
-    "CIRstrict": "CIR low disr.",
+    "RepSelectstrict": "RepSelect low disr.",
 }
 
 # Create the plot (method order comes from titles_dict keys)
@@ -289,7 +289,7 @@ fig = plot_wmdp_comparison(
     titles_dict=titles_dict,
     figsize=(10, 3),
     save_path="main_grid.pdf",
-    gap_before=["NPOstrict"],  # Add gap before CIR (strict)
+    gap_before=["NPOstrict"],  # Add gap before RepSelect (strict)
 )
 
 plt.show()

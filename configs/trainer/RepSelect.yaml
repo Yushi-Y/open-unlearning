@@ -1,13 +1,13 @@
 defaults:
   - finetune
-  - /hydra/sweeper: CIR  # Load CIR-specific sweep params (used with --multirun)
+  - /hydra/sweeper: RepSelect  # Load RepSelect-specific sweep params (used with --multirun)
 
-handler: CIR
+handler: RepSelect
 args:
   optim: sgd  # adam underperforms
   learning_rate: 0.4
   lr_scheduler_type: constant
-  gradient_accumulation_steps: 1  # must be one, because CIR modifies gradients in-place
+  gradient_accumulation_steps: 1  # must be one, because RepSelect modifies gradients in-place
 
 method_args:
   cfg:
