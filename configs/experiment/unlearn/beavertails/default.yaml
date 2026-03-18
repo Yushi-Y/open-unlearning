@@ -3,9 +3,6 @@
 defaults:
   - /trainer@relearning_trainer: finetune
   - override /model: Llama-3.2-1B
-  # - override /model: Qwen3-0.6B-Base
-  # - override /model: MobileLLM-125M
-  # - override /model: MobileLLM-600M
   # Delete inherited TOFU datasets from base data/unlearn.yaml
   - override /data/datasets@data.forget: null
   - override /data/datasets@data.retain: null
@@ -20,7 +17,6 @@ trainer:
     report_to: wandb # none|tensorboard|wandb|dvclive|comet_ml
     run_name: ${task_name}
     do_eval: False
-    # per_device_eval_batch_size: 8  # tmp
 
 eval:
   wikitext:
@@ -39,27 +35,30 @@ eval:
 tokenizer_cfg:
   max_length: 128
 
+# CLI: category=... to switch category
+category: animal_abuse
+
 data:
   custom_loaders:
     - loader: beavertails
       dataset_name: forget
       range: [0, 1024]
       split: 330k_train
-      category: animal_abuse
+      category: ${category}
       tokenizer: ${tokenizer_cfg}
 
     - loader: beavertails
       dataset_name: relearn
       range: [1024, 2048]
       split: 330k_train
-      category: animal_abuse
+      category: ${category}
       tokenizer: ${tokenizer_cfg}
 
     - loader: beavertails
       dataset_name: holdout_harmful
       range: [0, 128]
       split: 330k_test
-      category: animal_abuse
+      category: ${category}
       tokenizer: ${tokenizer_cfg}
 
     - loader: beavertails
@@ -89,7 +88,7 @@ relearning_trainer:
   handler: FinetuneTrainer
   args:
     optim: adamw_8bit  # sgd | adamw_8bit | paged_adamw_8bit
-    learning_rate: 1e-5
+    learning_rate: 3e-5
     lr_scheduler_type: constant
     report_to: wandb  # none|tensorboard|wandb|dvclive|comet_ml
     run_name: ${task_name}
