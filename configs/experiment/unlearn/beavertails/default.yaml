@@ -88,7 +88,8 @@ relearning_trainer:
   handler: FinetuneTrainer
   args:
     optim: adamw_8bit  # sgd | adamw_8bit | paged_adamw_8bit
-    learning_rate: 1e-5
+    # learning_rate: 1e-5
+    learning_rate: 5e-6  # epochs are long, so use smaller learning rate
     lr_scheduler_type: constant
     report_to: wandb  # none|tensorboard|wandb|dvclive|comet_ml
     run_name: ${task_name}
@@ -104,7 +105,7 @@ hydra:
     storage: ${oc.env:OPTUNA_STORAGE_URL}
     study_name: ${task_name}
     direction: ${optimize_direction}
-    n_trials: 100
+    n_trials: 50
     n_jobs: 1
     sampler:
       _target_: optuna.samplers.TPESampler

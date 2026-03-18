@@ -1,6 +1,6 @@
 #!/bin/bash
 #SBATCH --job-name=default_job
-#SBATCH --time=12:00:00
+#SBATCH --time=48:00:00
 #SBATCH --account=plgunlearningai-gpu-a100
 #SBATCH --partition=plgrid-gpu-a100
 #SBATCH --gres=gpu:1

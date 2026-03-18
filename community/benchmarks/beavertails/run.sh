@@ -9,18 +9,20 @@ common="sbatch runners/slurm_runner.sh python src/unlearn_relearn.py --config-na
 reference="sbatch runners/slurm_runner.sh python src/unlearn_relearn.py --config-name=unlearn.yaml experiment=unlearn/beavertails/default trainer.args.num_train_epochs=0"
 
 # model=gemma-3-270m
-model=gemma-3-4b-pt
-# model=gemma-2-2b
+# model=gemma-3-4b-pt
+model=gemma-2-2b
 
-${reference} model=${model} trainer=GradDiff task_name=${model}_reference
-${common} model=${model} trainer=RepSelect task_name=${model}_RepSelect
-${common} model=${model} trainer=GradDiff task_name=${model}_GradDiff
-${common} model=${model} trainer=NPO task_name=${model}_NPO
-${common} model=${model} trainer=RMU task_name=${model}_RMU
-${common} model=${model} trainer=SimNPO task_name=${model}_SimNPO
-${common} model=${model} trainer=UNDIAL task_name=${model}_UNDIAL
+category='animal_abuse'
+# category='terrorism,organized_crime'
 
-# later add category='terrorism,organized_crime'
+${reference} model=${model} category=${category} trainer=GradDiff task_name=${model}_${category}_reference
+${common} model=${model} category=${category} trainer=RepSelect task_name=${model}_${category}_RepSelect
+${common} model=${model} category=${category} trainer=GradDiff task_name=${model}_${category}_GradDiff
+${common} model=${model} category=${category} trainer=NPO task_name=${model}_${category}_NPO
+${common} model=${model} category=${category} trainer=RMU task_name=${model}_${category}_RMU
+${common} model=${model} category=${category} trainer=SimNPO task_name=${model}_${category}_SimNPO
+${common} model=${model} category=${category} trainer=UNDIAL task_name=${model}_${category}_UNDIAL
+
 
 
 # common="python3 src/unlearn_relearn.py \
