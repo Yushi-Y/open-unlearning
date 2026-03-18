@@ -102,10 +102,12 @@ class KLComputor:
         current_logits_masked = current_logits[token_mask]
         assert cached_logits_masked.shape == current_logits_masked.shape
         assert cached_logits_masked.ndim == 2  # (n_valid_tokens, vocab)
+        del cached_logits, current_logits
 
         # KL(P || Q) using kl_div (expects log_q as input, p as target)
         log_p = pt.nn.functional.log_softmax(cached_logits_masked, dim=-1)
         log_q = pt.nn.functional.log_softmax(current_logits_masked, dim=-1)
+        del cached_logits_masked, current_logits_masked
 
         kl = pt.nn.functional.kl_div(log_q, log_p, reduction="sum", log_target=True)
         num_tokens = token_mask.sum()

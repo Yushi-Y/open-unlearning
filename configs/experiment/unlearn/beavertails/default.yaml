@@ -26,7 +26,7 @@ eval:
   wikitext:
     handler: KLEvaluator
     dataset_name: wikitext
-    disr_budget: 0.02
+    disr_budget: 0.01
   safe_eval:
     handler: KLEvaluator
     dataset_name: safe_eval  # like retain, but different split
@@ -43,16 +43,16 @@ data:
   custom_loaders:
     - loader: beavertails
       dataset_name: forget
-      # target_limit: 1536  # size of the unlearning and relearning datasets
       range: [0, 512]
+      # range: [0, 1024]
       split: 330k_train
       category: animal_abuse
       tokenizer: ${tokenizer_cfg}
 
     - loader: beavertails
       dataset_name: relearn
-      # target_limit: 1536  # size of the unlearning and relearning datasets
       range: [512, 1024]
+      # range: [1024, 2048]
       split: 330k_train
       category: animal_abuse
       tokenizer: ${tokenizer_cfg}

@@ -64,7 +64,6 @@ class CIR(UnlearnTrainer):
                             module.weight.shape[1],  # in_features
                             module.weight.shape[0],  # out_features
                             cfg.lora_rank,
-                            cfg.lora_alpha,
                         ).to(self.model.device, dtype=self.model.dtype)
                         self.lora_params.extend(module.lora_module.parameters())
                         module.register_forward_hook(self.lora_forward_hook)
@@ -111,8 +110,10 @@ class CIR(UnlearnTrainer):
         self.use_hooks = True
         model.zero_grad(set_to_none=True)
         output = model(**prep_batch(batch, model.device))
-        forget_loss = -output.loss  # negative cross entropy loss
-        # forget_loss = label_logits(output.logits, batch["labels"])
+        if "loss" in self.cfg and self.cfg.loss == "logit_loss":
+            forget_loss = label_logits(output.logits, batch["labels"])
+        else:
+            forget_loss = -output.loss
         # we will backpropagate because the graph has been built by the forward pass
         # but backward() itself will not compute weight gradients for base params
         # instead, weights will remain with grad computed by the collapse_hook

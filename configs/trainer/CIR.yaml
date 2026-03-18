@@ -11,13 +11,14 @@ args:
 
 method_args:
   cfg:
-    n_pcs: 200
+    n_pcs: 300
 
     retain_momentum: 0.9
 
-    train_first_layers: 0.75
+    train_first_layers: 1.0
 
-    lora_rank: 8
-    lora_alpha: 16
+    lora_rank: 32
     lora_lr: 0.001
-    lora_decay: 0.99
+    lora_decay: 1
+    
+    loss: neg_ce_loss
