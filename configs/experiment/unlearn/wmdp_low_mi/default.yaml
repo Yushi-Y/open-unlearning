@@ -26,7 +26,7 @@ eval:
   wikitext_kl:
     handler: KLEvaluator
     dataset_name: wikitext
-    disr_budget: 0.02
+    disr_budget: 0.01
   retain_eval:
     handler: KLEvaluator
     dataset_name: retain_eval  # like retain, but different split

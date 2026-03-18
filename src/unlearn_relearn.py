@@ -1,8 +1,10 @@
 # example usage:
 # python3 src/unlearn_relearn.py --config-name=unlearn.yaml experiment=unlearn/wmdp_low_mi/default trainer=CIR task_name=1B_cir
 import os
+import signal
 import shutil
 import subprocess
+import uuid
 from pathlib import Path
 
 import hydra
@@ -27,8 +29,14 @@ def main(cfg: DictConfig):
     cfg.trainer.args.run_name = _get_run_name(cfg)
     cfg.relearning_trainer.args.run_name = _get_run_name(cfg)
 
-    comm_dir = Path(cfg.paths.tmp_comm_dir) / cfg.task_name
+    # adds random suffix to prevent collisions when running searches in parallel
+    suffix = cfg.task_name + "_" + uuid.uuid4().hex[:8]
+    cfg.paths.tmp_comm_dir = str(Path(cfg.paths.tmp_comm_dir) / suffix)
+    comm_dir = Path(cfg.paths.tmp_comm_dir)
     comm_dir.mkdir(parents=True, exist_ok=False)
+    # convert SIGTERM (scancel, slurm timeout) into SystemExit so `finally` runs
+    signal.signal(signal.SIGTERM, lambda *_: exit(1))
+
     try:
         # ! unlearning #########################################################
         if "UNL_WANDB_PROJECT" in os.environ:

@@ -2,7 +2,7 @@ from pathlib import Path
 
 import hydra
 from dotenv import load_dotenv
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 from data import get_collators, get_data
 from evals import get_evaluators
@@ -63,6 +63,14 @@ def main(cfg: DictConfig):
         template_args=template_args,
     )
 
+    if "wandb" in (trainer_args.report_to or []):
+        import wandb
+
+        if wandb.run is not None:
+            wandb.config.update(
+                OmegaConf.to_container(cfg.trainer, resolve=True), allow_val_change=True
+            )
+
     if trainer_args.do_train:
         trainer.train()
     if trainer_cfg.get("save_final_state", True):
@@ -73,7 +81,7 @@ def main(cfg: DictConfig):
         trainer.evaluate(metric_key_prefix="eval")
 
     # save last valid model (before any metric broke)
-    comm_dir = Path(cfg.paths.tmp_comm_dir) / cfg.task_name
+    comm_dir = Path(cfg.paths.tmp_comm_dir)
     if trainer.last_valid_model_state is not None:
         model.load_state_dict(trainer.last_valid_model_state)
         model.save_pretrained(comm_dir / "last_valid_model")

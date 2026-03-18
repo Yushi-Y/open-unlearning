@@ -28,15 +28,12 @@ class CIR(UnlearnTrainer):
         logging.info(f"{self.recalc_every=}")
         assert self.args.gradient_accumulation_steps == 1  # we modify grads in-place
 
-        # set trainable params
-        self.model.requires_grad_(False)  # train only modules that we specify
-        train_to_layer = int(len(self.model.model.layers) * cfg.train_first_layers)
-
         self.is_moe = hasattr(self.model.model.layers[0].mlp, "experts")
 
+        self.model.requires_grad_(False)  # train only modules that we specify
         self.lora_params = []
         self.base_trainable_params = []
-        for layer_num in range(train_to_layer):
+        for layer_num in range(len(self.model.model.layers)):
             mlp = self.model.model.layers[layer_num].mlp
             experts = mlp.experts if self.is_moe else [mlp]
             for expert in experts:
@@ -110,10 +107,8 @@ class CIR(UnlearnTrainer):
         self.use_hooks = True
         model.zero_grad(set_to_none=True)
         output = model(**prep_batch(batch, model.device))
-        if "loss" in self.cfg and self.cfg.loss == "logit_loss":
-            forget_loss = label_logits(output.logits, batch["labels"])
-        else:
-            forget_loss = -output.loss
+        # forget_loss = label_logits(output.logits, batch["labels"])
+        forget_loss = -output.loss
         # we will backpropagate because the graph has been built by the forward pass
         # but backward() itself will not compute weight gradients for base params
         # instead, weights will remain with grad computed by the collapse_hook
@@ -127,7 +122,6 @@ class CIR(UnlearnTrainer):
         # ! update LoRA adversarially (gradient ascent - adversary tries to relearn)
         for p in self.lora_params:
             p.data += self.cfg.lora_lr * p.grad
-            p.data *= self.cfg.lora_decay
             p.grad = None
 
         self.batch_idx += 1

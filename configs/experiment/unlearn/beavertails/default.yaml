@@ -43,23 +43,21 @@ data:
   custom_loaders:
     - loader: beavertails
       dataset_name: forget
-      range: [0, 512]
-      # range: [0, 1024]
+      range: [0, 1024]
       split: 330k_train
       category: animal_abuse
       tokenizer: ${tokenizer_cfg}
 
     - loader: beavertails
       dataset_name: relearn
-      range: [512, 1024]
-      # range: [1024, 2048]
+      range: [1024, 2048]
       split: 330k_train
       category: animal_abuse
       tokenizer: ${tokenizer_cfg}
 
     - loader: beavertails
       dataset_name: holdout_harmful
-      range: [0, 64]
+      range: [0, 128]
       split: 330k_test
       category: animal_abuse
       tokenizer: ${tokenizer_cfg}
@@ -73,7 +71,7 @@ data:
 
     - loader: beavertails
       dataset_name: safe_eval
-      range: [0, 64]
+      range: [0, 128]
       split: 330k_test
       category: safe
       tokenizer: ${tokenizer_cfg}
@@ -82,7 +80,7 @@ data:
       dataset_name: wikitext
       hf_args:
         path: filypo/wikitext_16k
-      range: [0, 64]
+      range: [0, 128]
       tokenizer: ${tokenizer_cfg}
 
 relearning_trainer:
