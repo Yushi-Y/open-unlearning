@@ -8,7 +8,9 @@
 common="sbatch runners/slurm_runner.sh python src/unlearn_relearn.py --config-name=unlearn.yaml --multirun experiment=unlearn/beavertails/default"
 reference="sbatch runners/slurm_runner.sh python src/unlearn_relearn.py --config-name=unlearn.yaml experiment=unlearn/beavertails/default trainer.args.num_train_epochs=0"
 
-model=gemma-3-270m
+# model=gemma-3-270m
+model=gemma-3-4b-pt
+# model=gemma-2-2b
 
 ${reference} model=${model} trainer=GradDiff task_name=${model}_reference
 ${common} model=${model} trainer=RepSelect task_name=${model}_RepSelect
