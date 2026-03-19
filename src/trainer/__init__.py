@@ -16,6 +16,7 @@ from trainer.unlearn.satimp import SatImp
 from trainer.unlearn.wga import WGA
 from trainer.unlearn.pdu import PDU
 from trainer.unlearn.repselect.repselect_trainer import RepSelect
+from trainer.unlearn.repselect.repselect_trainer2 import RepSelect2
 
 import logging
 
@@ -100,3 +101,4 @@ _register_trainer(SatImp)
 _register_trainer(WGA)
 _register_trainer(PDU)
 _register_trainer(RepSelect)
+_register_trainer(RepSelect2)

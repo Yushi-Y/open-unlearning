@@ -1,0 +1,19 @@
+defaults:
+  - finetune
+  - /hydra/sweeper: RepSelect2  # Load RepSelect-specific sweep params (used with --multirun)
+
+handler: RepSelect2
+args:
+  optim: sgd  # adam underperforms
+  learning_rate: 0.1
+  lr_scheduler_type: constant
+  gradient_accumulation_steps: 1  # must be one, because RepSelect modifies gradients in-place
+
+method_args:
+  cfg:
+    n_pcs: 400
+    retain_momentum: 0.975
+    lora_lr: 0.007
+    lora_rank: 32
+    forget_loss: npo_saturating  # "neg_cross_entropy" or "npo_saturating"
+    npo_beta: 0.06
