@@ -4,6 +4,7 @@ import math
 import random
 
 import torch as pt
+import torch.nn.functional as F
 from bitsandbytes.functional import dequantize_blockwise, quantize_blockwise
 
 from data.custom_loaders import DATE_STRING
@@ -65,6 +66,16 @@ class RepSelect(UnlearnTrainer):
                         self.lora_params.extend(module.lora_module.parameters())
                         module.register_forward_hook(self.lora_forward_hook)
 
+        # ! pre-cache forget batches (needed for storing per-sequence initial_nll)
+        if self.cfg.get("npo_beta") is not None:
+            self.forget_batches = [
+                self.data_collator(r)
+                for r in batched(
+                    self.train_dataset.forget,
+                    self.args.per_device_train_batch_size,
+                )
+            ]
+
         # ! prepare retain
         if "retain_momentum" in self.cfg:
             # pre-cache retain batches (needed for storing data for KL computation)
@@ -97,7 +108,11 @@ class RepSelect(UnlearnTrainer):
                 param.ref_grad = quantize_blockwise(ref)  # 8-bit quantization
 
         # ! unlearning loss
-        batch = inputs["forget"]
+        if hasattr(self, "forget_batches"):
+            batch = self.forget_batches[self.batch_idx % len(self.forget_batches)]
+        else:
+            batch = inputs["forget"]
+
         self.token_mask = batch["attention_mask"].bool().clone()
         self.token_mask[:, 0] = False  # omit unlearning on the BOS token
         if self.processing_class.chat_template is not None:  # omit template tokens
@@ -107,8 +122,11 @@ class RepSelect(UnlearnTrainer):
         self.use_hooks = True
         model.zero_grad(set_to_none=True)
         output = model(**prep_batch(batch, model.device))
-        # forget_loss = label_logits(output.logits, batch["labels"])
-        forget_loss = -output.loss
+        if self.cfg.get("npo_beta") is not None:
+            forget_loss = npo_saturating_loss(output, batch, self.cfg.npo_beta)
+        else:
+            # forget_loss = label_logits(output.logits, batch["labels"])
+            forget_loss = -output.loss
         # we will backpropagate because the graph has been built by the forward pass
         # but backward() itself will not compute weight gradients for base params
         # instead, weights will remain with grad computed by the collapse_hook
@@ -121,7 +139,7 @@ class RepSelect(UnlearnTrainer):
 
         # ! update LoRA adversarially (gradient ascent - adversary tries to relearn)
         for p in self.lora_params:
-            p.data += self.cfg.lora_lr * p.grad
+            p.data += self.cfg.lora_lr * self.args.learning_rate * p.grad
             p.grad = None
 
         self.batch_idx += 1
@@ -212,4 +230,24 @@ class ManualLoRA(pt.nn.Module):
 
     def forward(self, x):
         return x @ self.lora_A @ self.lora_B * self.scaling
+
+
+def npo_saturating_loss(output, batch, beta):
+    logits = output.logits
+    labels = batch["labels"].to(logits.device)
+    shifted_labels = labels[..., 1:].contiguous()
+    shifted_logits = logits[..., :-1, :].contiguous()
+    per_token_nll = pt.nn.functional.cross_entropy(
+        shifted_logits.transpose(-1, -2),
+        shifted_labels,
+        ignore_index=-100,
+        reduction="none",
+    )
+    per_seq_nll = per_token_nll.sum(dim=-1)
+
+    if "initial_nll" not in batch:
+        batch["initial_nll"] = per_seq_nll.detach()
+
+    diff = per_seq_nll - batch["initial_nll"].to(per_seq_nll.device)
+    return -F.logsigmoid(beta * diff).mean() / beta
 

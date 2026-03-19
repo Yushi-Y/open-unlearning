@@ -16,11 +16,11 @@ category='animal_abuse'
 # category='terrorism,organized_crime'
 
 version=v2
-# no version used the original beavertails dataset, where there is data duplication and mislabeling
+# "no version" used the original beavertails dataset, where there is data duplication and mislabeling; also, it wasn't finished, got terminated before 50 trials
 # v2 uses our curated high-quality subset
 
 ${reference} model=${model} category=${category} trainer=GradDiff task_name=${version}_${model}_${category}_reference
-${common} model=${model} category=${category} trainer=RepSelect2 task_name=${version}_${model}_${category}_RepSelect2
+${common} model=${model} category=${category} trainer=RepSelect task_name=${version}_${model}_${category}_RepSelect
 ${common} model=${model} category=${category} trainer=GradDiff task_name=${version}_${model}_${category}_GradDiff
 ${common} model=${model} category=${category} trainer=NPO task_name=${version}_${model}_${category}_NPO
 ${common} model=${model} category=${category} trainer=RMU task_name=${version}_${model}_${category}_RMU
