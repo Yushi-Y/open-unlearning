@@ -138,8 +138,11 @@ class RepSelect(UnlearnTrainer):
         self.use_hooks = False
 
         # ! update LoRA adversarially (gradient ascent - adversary tries to relearn)
+        normalize_grads(self.lora_params)
         for p in self.lora_params:
-            p.data += self.cfg.lora_lr * self.args.learning_rate * p.grad
+            if self.batch_idx >= self.recalc_every:
+                # don't train in first epoch, because that would modify reference loss for NPO
+                p.data += self.cfg.lora_lr * self.args.learning_rate * p.grad
             p.grad = None
 
         self.batch_idx += 1
@@ -149,10 +152,8 @@ class RepSelect(UnlearnTrainer):
                     module.act_collapser.process_saved_vecs()
                 if hasattr(module, "grad_collapser"):
                     module.grad_collapser.process_saved_vecs()
-                # if hasattr(module, "lora_module"):
-                #     module.lora_module.lora_B.data.zero_()
 
-        normalize_grads(model)
+        normalize_grads(self.base_trainable_params)
         return forget_loss.detach()
 
     def save_act_input_hook(self, module, args, output):
@@ -219,19 +220,6 @@ def _get_banned_tokens(processing_class):
     )
 
 
-class ManualLoRA(pt.nn.Module):
-    def __init__(self, in_features, out_features, rank, alpha=16):
-        super().__init__()
-        self.scaling = alpha / rank
-        self.lora_A = pt.nn.Parameter(pt.empty(in_features, rank))
-        self.lora_B = pt.nn.Parameter(pt.zeros(rank, out_features))
-        pt.nn.init.kaiming_uniform_(self.lora_A, a=5**0.5)
-        self.requires_grad_(True)
-
-    def forward(self, x):
-        return x @ self.lora_A @ self.lora_B * self.scaling
-
-
 def npo_saturating_loss(output, batch, beta):
     logits = output.logits
     labels = batch["labels"].to(logits.device)
@@ -250,4 +238,17 @@ def npo_saturating_loss(output, batch, beta):
 
     diff = per_seq_nll - batch["initial_nll"].to(per_seq_nll.device)
     return -F.logsigmoid(beta * diff).mean() / beta
+
+
+class ManualLoRA(pt.nn.Module):
+    def __init__(self, in_features, out_features, rank, alpha=16):
+        super().__init__()
+        self.scaling = alpha / rank
+        self.lora_A = pt.nn.Parameter(pt.empty(in_features, rank))
+        self.lora_B = pt.nn.Parameter(pt.zeros(rank, out_features))
+        pt.nn.init.kaiming_uniform_(self.lora_A, a=5**0.5)
+        self.requires_grad_(True)
+
+    def forward(self, x):
+        return x @ self.lora_A @ self.lora_B * self.scaling
 

@@ -165,19 +165,19 @@ def label_logits(logits, labels):
 #     return unlearning_saturations.mean()
 
 
-def normalize_grads(model):
+def normalize_grads(params):
     """L2 norm of weight.grad, computed across all the trainable weights."""
-    if all(param.grad is None for param in model.parameters()):
+    if all(param.grad is None for param in params):
         return
     update_norm = pt.sqrt(
         sum(
             param.grad.float().norm() ** 2
-            for param in model.parameters()
+            for param in params
             if param.grad is not None
         )
     )
     # normalize the grads
-    for param in model.parameters():
+    for param in params:
         if param.grad is not None:
             param.grad /= update_norm
 

@@ -15,9 +15,10 @@ model=gemma-2-2b
 category='animal_abuse'
 # category='terrorism,organized_crime'
 
-version=v2
+version=v3
 # "no version" used the original beavertails dataset, where there is data duplication and mislabeling; also, it wasn't finished, got terminated before 50 trials
 # v2 uses our curated high-quality subset
+# v3 uses a 2x smaller LR during relearning, because it was too severe
 
 ${reference} model=${model} category=${category} trainer=GradDiff task_name=${version}_${model}_${category}_reference
 ${common} model=${model} category=${category} trainer=RepSelect task_name=${version}_${model}_${category}_RepSelect
