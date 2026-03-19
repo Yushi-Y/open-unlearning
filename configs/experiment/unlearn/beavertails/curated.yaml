@@ -45,19 +45,19 @@ data:
     # filypo/beavertails-curated — only label_correct=True examples used
     - loader: beavertails_curated
       dataset_name: forget
-      range: [0, 400]
+      range: [0, 385]
       split: ${category}
       tokenizer: ${tokenizer_cfg}
 
     - loader: beavertails_curated
       dataset_name: relearn
-      range: [400, 800]
+      range: [385, 770]
       split: ${category}
       tokenizer: ${tokenizer_cfg}
 
     - loader: beavertails_curated
       dataset_name: holdout_harmful
-      range: [800, 898]
+      range: [770, 898]
       split: ${category}
       tokenizer: ${tokenizer_cfg}
 
@@ -69,7 +69,7 @@ data:
 
     - loader: beavertails_curated
       dataset_name: safe_eval
-      range: [1000, 1100]
+      range: [1000, 1128]
       split: safe
       tokenizer: ${tokenizer_cfg}
 
