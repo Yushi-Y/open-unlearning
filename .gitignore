@@ -195,3 +195,8 @@ tmp_comm/
 community/benchmarks/wmdp_low_mi/plots/*.pdf
 src/tmp.py
 test.py
+.anthropic_key
+community/benchmarks/beavertails/classified_dryrun.jsonl
+community/benchmarks/beavertails/staging.jsonl
+.claude/settings.json
+community/benchmarks/beavertails/classified.jsonl

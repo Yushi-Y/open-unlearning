@@ -5,8 +5,8 @@
 
 # note, experiments were done with adamw_8bit as the default optimizer in finetune.yaml
 
-common="sbatch runners/slurm_runner.sh python src/unlearn_relearn.py --config-name=unlearn.yaml --multirun experiment=unlearn/beavertails/default"
-reference="sbatch runners/slurm_runner.sh python src/unlearn_relearn.py --config-name=unlearn.yaml experiment=unlearn/beavertails/default trainer.args.num_train_epochs=0"
+common="sbatch runners/slurm_runner.sh python src/unlearn_relearn.py --config-name=unlearn.yaml --multirun experiment=unlearn/beavertails/curated"
+reference="sbatch runners/slurm_runner.sh python src/unlearn_relearn.py --config-name=unlearn.yaml experiment=unlearn/beavertails/curated trainer.args.num_train_epochs=0"
 
 # model=gemma-3-270m
 # model=gemma-3-4b-pt
@@ -15,13 +15,17 @@ model=gemma-2-2b
 category='animal_abuse'
 # category='terrorism,organized_crime'
 
-${reference} model=${model} category=${category} trainer=GradDiff task_name=${model}_${category}_reference
-${common} model=${model} category=${category} trainer=RepSelect task_name=${model}_${category}_RepSelect
-${common} model=${model} category=${category} trainer=GradDiff task_name=${model}_${category}_GradDiff
-${common} model=${model} category=${category} trainer=NPO task_name=${model}_${category}_NPO
-${common} model=${model} category=${category} trainer=RMU task_name=${model}_${category}_RMU
-${common} model=${model} category=${category} trainer=SimNPO task_name=${model}_${category}_SimNPO
-${common} model=${model} category=${category} trainer=UNDIAL task_name=${model}_${category}_UNDIAL
+version=v2
+# no version used the original beavertails dataset, where there is data duplication and mislabeling
+# v2 uses our curated high-quality subset
+
+${reference} model=${model} category=${category} trainer=GradDiff task_name=${version}_${model}_${category}_reference
+${common} model=${model} category=${category} trainer=RepSelect2 task_name=${version}_${model}_${category}_RepSelect2
+${common} model=${model} category=${category} trainer=GradDiff task_name=${version}_${model}_${category}_GradDiff
+${common} model=${model} category=${category} trainer=NPO task_name=${version}_${model}_${category}_NPO
+${common} model=${model} category=${category} trainer=RMU task_name=${version}_${model}_${category}_RMU
+${common} model=${model} category=${category} trainer=SimNPO task_name=${version}_${model}_${category}_SimNPO
+${common} model=${model} category=${category} trainer=UNDIAL task_name=${version}_${model}_${category}_UNDIAL
 
 
 

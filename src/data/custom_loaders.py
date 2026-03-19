@@ -135,6 +135,46 @@ def beavertails(cfg, tokenizer, **kwargs):
     return {cfg.dataset_name: samples}
 
 
+def beavertails_curated(cfg, tokenizer, **kwargs):
+    # splits: animal_abuse, terrorism_organized_crime, safe
+    ds = load_hf_cached("filypo/beavertails-curated", split=cfg.split)
+    texts = ds.filter(lambda x: x["label_correct"])
+    if "range" in cfg:
+        len_ = cfg.range[1] - cfg.range[0]
+        texts = texts.select(range(*cfg.range))
+    else:
+        len_ = len(texts)
+    logging.info(f"{cfg.dataset_name} {len_}/{len(ds)} (filtered by label_correct)")
+
+    samples = []
+    for text in texts:
+        if tokenizer.chat_template is None:
+            full_txt = f"{text['prompt']} {text['response']}"
+            beginning_text = text["prompt"]
+        else:
+            chat = [
+                {"role": "user", "content": text["prompt"]},
+                {"role": "assistant", "content": text["response"]},
+            ]
+            full_txt = tokenizer.apply_chat_template(
+                chat, tokenize=False, date_string=DATE_STRING
+            )
+            beginning_text = tokenizer.apply_chat_template(
+                chat[:-1],
+                tokenize=False,
+                date_string="10 Apr 2025",
+                add_generation_prompt=True,
+            )
+
+        sample = _tokenize(full_txt, tokenizer, cfg.tokenizer)
+        beginning_len = len(tokenizer(beginning_text, **cfg.tokenizer)["input_ids"])
+        sample["labels"][:beginning_len] = -100
+        samples.append(sample)
+
+    assert len(samples) == len_
+    return {cfg.dataset_name: samples}
+
+
 # def _load_from_repo(path, repo="filyp/unlearning"):
 #     base_url = f"https://raw.githubusercontent.com/{repo}/refs/heads/main"
 #     return load_dataset(

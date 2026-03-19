@@ -17,7 +17,7 @@ from trainer.utils import label_logits, normalize_grads
 logging.basicConfig(level=logging.INFO)
 
 
-class RepSelect(UnlearnTrainer):
+class RepSelect2(UnlearnTrainer):
     def __init__(self, cfg, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.cfg = cfg
