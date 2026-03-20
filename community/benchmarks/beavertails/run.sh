@@ -22,11 +22,12 @@ model=gemma-2-2b
 category='animal_abuse'
 # category='terrorism,organized_crime'
 
-version=v4
+version=v5
 # "no version" used the original beavertails dataset, where there is data duplication and mislabeling; also, it wasn't finished, got terminated before 50 trials
 # v2 uses our curated high-quality subset
 # v3 uses a 2x smaller LR during relearning, because it was too severe
 # v4 tunes probability, not loss; also npo saturation was removed from repselect
+# v5 evel smaller relearning LR
 
 ${reference} model=${model} category=${category} trainer=GradDiff task_name=${version}_${model}_${category}_reference
 ${common} model=${model} category=${category} trainer=RepSelect task_name=${version}_${model}_${category}_RepSelect
