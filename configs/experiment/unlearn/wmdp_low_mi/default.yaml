@@ -33,8 +33,8 @@ eval:
     disr_budget: null
   wmdp_low_mi:
     handler: WMDPLLowMIEvaluator
-  recall_loss:
-    handler: LossEvaluator
+  recall_prob:
+    handler: ProbabilityEvaluator
     dataset_name: recall
 
 # CLI: wmdp_domain=cyber to switch domain
@@ -89,8 +89,8 @@ relearning_trainer:
 # Optuna sweeper config (activate with --multirun flag)
 # metric_to_optimize: forget_acc_t1
 # optimize_direction: minimize
-metric_to_optimize: recall_loss
-optimize_direction: maximize
+metric_to_optimize: recall_prob
+optimize_direction: minimize
 hydra:
   sweeper:
     # hyperparam range loaded from /sweep config group in configs/trainer/*.yaml files

@@ -15,4 +15,4 @@ method_args:
     retain_momentum: 0.975
     lora_lr: 0.1
     lora_rank: 32
-    npo_beta: 0.05
+    # npo_beta: 0.1

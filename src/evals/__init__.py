@@ -1,6 +1,6 @@
 from typing import Dict, Any
 from omegaconf import DictConfig
-from evals.loss_eval import LossEvaluator
+from evals.loss_eval import LossEvaluator, ProbabilityEvaluator
 from evals.tofu import TOFUEvaluator
 from evals.muse import MUSEEvaluator
 from evals.lm_eval import LMEvalEvaluator
@@ -39,4 +39,5 @@ _register_evaluator(MUSEEvaluator)
 _register_evaluator(LMEvalEvaluator)
 _register_evaluator(WMDPLLowMIEvaluator)
 _register_evaluator(LossEvaluator)
+_register_evaluator(ProbabilityEvaluator)
 _register_evaluator(KLEvaluator)
