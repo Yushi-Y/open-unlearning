@@ -5,7 +5,7 @@ defaults:
 handler: RepSelect
 args:
   optim: sgd  # adam underperforms
-  learning_rate: 0.2
+  learning_rate: 0.1
   lr_scheduler_type: constant
   gradient_accumulation_steps: 1  # must be one, because RepSelect modifies gradients in-place
 
@@ -15,4 +15,3 @@ method_args:
     retain_momentum: 0.975
     lora_lr: 0.1
     lora_rank: 32
-    # npo_beta: 0.1

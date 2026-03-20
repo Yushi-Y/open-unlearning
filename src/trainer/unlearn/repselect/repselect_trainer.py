@@ -9,15 +9,8 @@ from bitsandbytes.functional import dequantize_blockwise, quantize_blockwise
 from data.utils import batched, prep_batch
 from evals.kl_eval import KLComputor
 from trainer.unlearn.base import UnlearnTrainer
-from trainer.unlearn.repselect.collapsers import (
-    CovStoringCollapser,
-    IncrementalPCACollapser,
-)
-from trainer.unlearn.repselect.utils import (
-    get_banned_tokens,
-    npo_saturating_loss,
-    ManualLoRA,
-)
+from trainer.unlearn.repselect.collapsers import CovStoringCollapser
+from trainer.unlearn.repselect.utils import get_banned_tokens, ManualLoRA
 from trainer.utils import label_logits, normalize_grads
 
 logging.basicConfig(level=logging.INFO)
@@ -72,16 +65,6 @@ class RepSelect(UnlearnTrainer):
                         self.lora_params.extend(module.lora_module.parameters())
                         module.register_forward_hook(self.lora_forward_hook)
 
-        # ! pre-cache forget batches (needed for storing per-sequence initial_nll)
-        if self.cfg.get("npo_beta") is not None:
-            self.forget_batches = [
-                self.data_collator(r)
-                for r in batched(
-                    self.train_dataset.forget,
-                    self.args.per_device_train_batch_size,
-                )
-            ]
-
         # ! prepare retain
         if "retain_momentum" in self.cfg:
             # pre-cache retain batches (needed for storing data for KL computation)
@@ -114,11 +97,7 @@ class RepSelect(UnlearnTrainer):
                 param.ref_grad = quantize_blockwise(ref)  # 8-bit quantization
 
         # ! unlearning loss
-        if hasattr(self, "forget_batches"):
-            batch = self.forget_batches[self.batch_idx % len(self.forget_batches)]
-        else:
-            batch = inputs["forget"]
-
+        batch = inputs["forget"]
         self.token_mask = batch["attention_mask"].bool().clone()
         self.token_mask[:, 0] = False  # omit unlearning on the BOS token
         if self.processing_class.chat_template is not None:  # omit template tokens
@@ -128,11 +107,8 @@ class RepSelect(UnlearnTrainer):
         self.use_hooks = True
         model.zero_grad(set_to_none=True)
         output = model(**prep_batch(batch, model.device))
-        if self.cfg.get("npo_beta") is not None:
-            forget_loss = npo_saturating_loss(output, batch, self.cfg.npo_beta)
-        else:
-            # forget_loss = label_logits(output.logits, batch["labels"])
-            forget_loss = -output.loss
+        # forget_loss = label_logits(output.logits, batch["labels"])
+        forget_loss = -output.loss
         # we will backpropagate because the graph has been built by the forward pass
         # but backward() itself will not compute weight gradients for base params
         # instead, weights will remain with grad computed by the collapse_hook
@@ -146,9 +122,7 @@ class RepSelect(UnlearnTrainer):
         # ! update LoRA adversarially (gradient ascent - adversary tries to relearn)
         normalize_grads(self.lora_params)
         for p in self.lora_params:
-            if self.batch_idx >= self.recalc_every:
-                # don't train in first epoch, because that would modify reference loss for NPO
-                p.data += self.cfg.lora_lr * self.args.learning_rate * p.grad
+            p.data += self.cfg.lora_lr * self.args.learning_rate * p.grad
             p.grad = None
 
         self.batch_idx += 1
