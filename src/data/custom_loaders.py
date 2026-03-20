@@ -63,29 +63,31 @@ def wmdp_low_mi(cfg, tokenizer, **kwargs):
     T = load_hf_cached(path=f"filypo/wmdp_{cfg.dataset}_T", split="train")
     V = load_hf_cached(path=f"filypo/wmdp_{cfg.dataset}_V", split="train")
 
-    T_and_V = concatenate_datasets([T, V])
-    eval_qs = T_and_V if cfg.get("eval_on_all_questions", False) else V
-    logging.info(f"{len(T)=}, {len(V)=}, {len(eval_qs)=}")
+    full = concatenate_datasets([T, V])
+    mid = len(full) // 2
+    split1 = full.select(range(mid))
+    split2 = full.select(range(mid, len(full)))
+    logging.info(f"{len(full)=}, {len(split1)=}, {len(split2)=}")
 
     training_samples = [
         _tokenize(q["sentences"][idx], tokenizer, cfg.tokenizer)
         for idx in range(cfg.num_examples_per_question)
-        for q in T_and_V
+        for q in full
     ]
 
     relearning_samples = [
         _tokenize(q["sentences"][idx], tokenizer, cfg.tokenizer)
         for idx in range(cfg.num_examples_per_question)
-        for q in T
+        for q in split1
     ]
 
-    recall_samples = _load_recall_samples(eval_qs, cfg.tokenizer, tokenizer)
+    recall_samples = _load_recall_samples(split2, cfg.tokenizer, tokenizer)
 
     return dict(
         forget=training_samples,
         relearn=relearning_samples,
         recall=recall_samples,
-        eval_qs=eval_qs,
+        eval_qs=split2,
     )
 
 
