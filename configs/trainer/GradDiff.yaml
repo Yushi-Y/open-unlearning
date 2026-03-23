@@ -1,6 +1,5 @@
 defaults:
   - finetune
-  - /hydra/sweeper: GradDiff
 
 handler: GradDiff
 method_args:

@@ -1,6 +1,5 @@
 defaults:
   - GradDiff
-  - override /hydra/sweeper: NPO
 
 handler: NPO
 method_args:

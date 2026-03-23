@@ -1,6 +1,5 @@
 defaults:
   - finetune
-  - /hydra/sweeper: RepSelect  # Load RepSelect-specific sweep params (used with --multirun)
 
 handler: RepSelect
 args:

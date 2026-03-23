@@ -1,6 +1,5 @@
 defaults:
   - GradDiff
-  - override /hydra/sweeper: SimNPO
 
 handler: SimNPO
 method_args:
