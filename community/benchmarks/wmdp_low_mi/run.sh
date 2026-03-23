@@ -23,16 +23,32 @@ wmdp_domain='bio'
 
 version=v1
 
-${reference} model=${model} wmdp_domain=${wmdp_domain} trainer=GradDiff task_name=${version}_${model}_${wmdp_domain}_reference
-${common} model=${model} wmdp_domain=${wmdp_domain} trainer=RepSelect hydra/sweeper=RepSelect task_name=${version}_${model}_${wmdp_domain}_RepSelect
-${common} model=${model} wmdp_domain=${wmdp_domain} trainer=GradDiff hydra/sweeper=GradDiff task_name=${version}_${model}_${wmdp_domain}_GradDiff2
-${common} model=${model} wmdp_domain=${wmdp_domain} trainer=NPO hydra/sweeper=NPO task_name=${version}_${model}_${wmdp_domain}_NPO
-${common} model=${model} wmdp_domain=${wmdp_domain} trainer=RMU hydra/sweeper=RMU task_name=${version}_${model}_${wmdp_domain}_RMU2
-${common} model=${model} wmdp_domain=${wmdp_domain} trainer=SimNPO hydra/sweeper=SimNPO task_name=${version}_${model}_${wmdp_domain}_SimNPO
-${common} model=${model} wmdp_domain=${wmdp_domain} trainer=UNDIAL hydra/sweeper=UNDIAL task_name=${version}_${model}_${wmdp_domain}_UNDIAL2
+###############################################################
+
+common="${common} model=${model} wmdp_domain=${wmdp_domain}"
+reference="${reference} model=${model} wmdp_domain=${wmdp_domain}"
+
+${reference} trainer=GradDiff task_name=${version}_${model}_${wmdp_domain}_reference
+
+# Main experiments
+${common} trainer=RepSelect hydra/sweeper=RepSelect task_name=${version}_${model}_${wmdp_domain}_RepSelect
+${common} trainer=GradDiff hydra/sweeper=GradDiff task_name=${version}_${model}_${wmdp_domain}_GradDiff2
+${common} trainer=NPO hydra/sweeper=NPO task_name=${version}_${model}_${wmdp_domain}_NPO
+${common} trainer=RMU hydra/sweeper=RMU task_name=${version}_${model}_${wmdp_domain}_RMU2
+${common} trainer=SimNPO hydra/sweeper=SimNPO task_name=${version}_${model}_${wmdp_domain}_SimNPO
+${common} trainer=UNDIAL hydra/sweeper=UNDIAL task_name=${version}_${model}_${wmdp_domain}_UNDIAL2
 
 # RepSelect ablations (all use wide LR range for fair comparison)
-${common} model=${model} wmdp_domain=${wmdp_domain} trainer=RepSelect hydra/sweeper=RepSelect_wide task_name=${version}_${model}_${wmdp_domain}_RepSelect_wide2
-${common} model=${model} wmdp_domain=${wmdp_domain} trainer=RepSelect hydra/sweeper=RepSelect_no_lora '~trainer.method_args.cfg.lora_lr' task_name=${version}_${model}_${wmdp_domain}_RepSelect_no_lora2
-${common} model=${model} wmdp_domain=${wmdp_domain} trainer=RepSelect hydra/sweeper=RepSelect_no_retain '~trainer.method_args.cfg.retain_momentum' task_name=${version}_${model}_${wmdp_domain}_RepSelect_no_retain2
-${common} model=${model} wmdp_domain=${wmdp_domain} trainer=RepSelect hydra/sweeper=RepSelect_no_pcs '~trainer.method_args.cfg.n_pcs' task_name=${version}_${model}_${wmdp_domain}_RepSelect_no_pcs2
+${common} trainer=RepSelect hydra/sweeper=RepSelect_wide task_name=${version}_${model}_${wmdp_domain}_RepSelect_wide2
+${common} trainer=RepSelect hydra/sweeper=RepSelect_no_lora '~trainer.method_args.cfg.lora_lr' task_name=${version}_${model}_${wmdp_domain}_RepSelect_no_lora2
+${common} trainer=RepSelect hydra/sweeper=RepSelect_no_retain '~trainer.method_args.cfg.retain_momentum' task_name=${version}_${model}_${wmdp_domain}_RepSelect_no_retain2
+${common} trainer=RepSelect hydra/sweeper=RepSelect_no_pcs '~trainer.method_args.cfg.n_pcs' task_name=${version}_${model}_${wmdp_domain}_RepSelect_no_pcs2
+
+# High disruption experiments
+common="$common eval.wikitext_kl.disr_budget=0.1"
+${common} trainer=RepSelect hydra/sweeper=RepSelect_highdisr task_name=${version}_${model}_${wmdp_domain}_RepSelect_highdisr
+${common} trainer=GradDiff hydra/sweeper=GradDiff task_name=${version}_${model}_${wmdp_domain}_GradDiff2_highdisr
+${common} trainer=NPO hydra/sweeper=NPO task_name=${version}_${model}_${wmdp_domain}_NPO_highdisr
+${common} trainer=RMU hydra/sweeper=RMU task_name=${version}_${model}_${wmdp_domain}_RMU2_highdisr
+${common} trainer=SimNPO hydra/sweeper=SimNPO task_name=${version}_${model}_${wmdp_domain}_SimNPO_highdisr
+${common} trainer=UNDIAL hydra/sweeper=UNDIAL task_name=${version}_${model}_${wmdp_domain}_UNDIAL2_highdisr
