@@ -25,15 +25,14 @@ version=v1
 
 ${reference} model=${model} wmdp_domain=${wmdp_domain} trainer=GradDiff task_name=${version}_${model}_${wmdp_domain}_reference
 ${common} model=${model} wmdp_domain=${wmdp_domain} trainer=RepSelect task_name=${version}_${model}_${wmdp_domain}_RepSelect
+${common} model=${model} wmdp_domain=${wmdp_domain} trainer=GradDiff task_name=${version}_${model}_${wmdp_domain}_GradDiff
+${common} model=${model} wmdp_domain=${wmdp_domain} trainer=NPO task_name=${version}_${model}_${wmdp_domain}_NPO
+${common} model=${model} wmdp_domain=${wmdp_domain} trainer=RMU task_name=${version}_${model}_${wmdp_domain}_RMU
+${common} model=${model} wmdp_domain=${wmdp_domain} trainer=SimNPO task_name=${version}_${model}_${wmdp_domain}_SimNPO
+${common} model=${model} wmdp_domain=${wmdp_domain} trainer=UNDIAL task_name=${version}_${model}_${wmdp_domain}_UNDIAL
 
 # RepSelect ablations (all use wide LR range for fair comparison)
 ${common} model=${model} wmdp_domain=${wmdp_domain} trainer=RepSelect hydra/sweeper=RepSelect_wide task_name=${version}_${model}_${wmdp_domain}_RepSelect_wide
 ${common} model=${model} wmdp_domain=${wmdp_domain} trainer=RepSelect hydra/sweeper=RepSelect_no_lora '~trainer.method_args.cfg.lora_lr' task_name=${version}_${model}_${wmdp_domain}_RepSelect_no_lora
 ${common} model=${model} wmdp_domain=${wmdp_domain} trainer=RepSelect hydra/sweeper=RepSelect_no_retain '~trainer.method_args.cfg.retain_momentum' task_name=${version}_${model}_${wmdp_domain}_RepSelect_no_retain
 ${common} model=${model} wmdp_domain=${wmdp_domain} trainer=RepSelect hydra/sweeper=RepSelect_no_pcs '~trainer.method_args.cfg.n_pcs' task_name=${version}_${model}_${wmdp_domain}_RepSelect_no_pcs
-
-${common} model=${model} wmdp_domain=${wmdp_domain} trainer=GradDiff task_name=${version}_${model}_${wmdp_domain}_GradDiff
-${common} model=${model} wmdp_domain=${wmdp_domain} trainer=NPO task_name=${version}_${model}_${wmdp_domain}_NPO
-${common} model=${model} wmdp_domain=${wmdp_domain} trainer=RMU task_name=${version}_${model}_${wmdp_domain}_RMU
-${common} model=${model} wmdp_domain=${wmdp_domain} trainer=SimNPO task_name=${version}_${model}_${wmdp_domain}_SimNPO
-${common} model=${model} wmdp_domain=${wmdp_domain} trainer=UNDIAL task_name=${version}_${model}_${wmdp_domain}_UNDIAL

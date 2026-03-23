@@ -31,15 +31,14 @@ version=v5
 
 ${reference} model=${model} category=${category} trainer=GradDiff task_name=${version}_${model}_${category}_reference
 ${common} model=${model} category=${category} trainer=RepSelect task_name=${version}_${model}_${category}_RepSelect
+${common} model=${model} category=${category} trainer=GradDiff task_name=${version}_${model}_${category}_GradDiff
+${common} model=${model} category=${category} trainer=NPO task_name=${version}_${model}_${category}_NPO
+${common} model=${model} category=${category} trainer=RMU task_name=${version}_${model}_${category}_RMU
+${common} model=${model} category=${category} trainer=SimNPO task_name=${version}_${model}_${category}_SimNPO
+${common} model=${model} category=${category} trainer=UNDIAL task_name=${version}_${model}_${category}_UNDIAL
 
 # RepSelect ablations (all use wide LR range for fair comparison)
 ${common} model=${model} category=${category} trainer=RepSelect hydra/sweeper=RepSelect_wide task_name=${version}_${model}_${category}_RepSelect_wide
 ${common} model=${model} category=${category} trainer=RepSelect hydra/sweeper=RepSelect_no_lora '~trainer.method_args.cfg.lora_lr' task_name=${version}_${model}_${category}_RepSelect_no_lora
 ${common} model=${model} category=${category} trainer=RepSelect hydra/sweeper=RepSelect_no_retain '~trainer.method_args.cfg.retain_momentum' task_name=${version}_${model}_${category}_RepSelect_no_retain
 ${common} model=${model} category=${category} trainer=RepSelect hydra/sweeper=RepSelect_no_pcs '~trainer.method_args.cfg.n_pcs' task_name=${version}_${model}_${category}_RepSelect_no_pcs
-
-${common} model=${model} category=${category} trainer=GradDiff task_name=${version}_${model}_${category}_GradDiff
-${common} model=${model} category=${category} trainer=NPO task_name=${version}_${model}_${category}_NPO
-${common} model=${model} category=${category} trainer=RMU task_name=${version}_${model}_${category}_RMU
-${common} model=${model} category=${category} trainer=SimNPO task_name=${version}_${model}_${category}_SimNPO
-${common} model=${model} category=${category} trainer=UNDIAL task_name=${version}_${model}_${category}_UNDIAL
