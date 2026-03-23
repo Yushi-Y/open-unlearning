@@ -25,11 +25,11 @@ version=v1
 
 ${reference} model=${model} wmdp_domain=${wmdp_domain} trainer=GradDiff task_name=${version}_${model}_${wmdp_domain}_reference
 ${common} model=${model} wmdp_domain=${wmdp_domain} trainer=RepSelect task_name=${version}_${model}_${wmdp_domain}_RepSelect
-${common} model=${model} wmdp_domain=${wmdp_domain} trainer=GradDiff task_name=${version}_${model}_${wmdp_domain}_GradDiff
+${common} model=${model} wmdp_domain=${wmdp_domain} trainer=GradDiff task_name=${version}_${model}_${wmdp_domain}_GradDiff2
 ${common} model=${model} wmdp_domain=${wmdp_domain} trainer=NPO task_name=${version}_${model}_${wmdp_domain}_NPO
-${common} model=${model} wmdp_domain=${wmdp_domain} trainer=RMU task_name=${version}_${model}_${wmdp_domain}_RMU
+${common} model=${model} wmdp_domain=${wmdp_domain} trainer=RMU task_name=${version}_${model}_${wmdp_domain}_RMU2
 ${common} model=${model} wmdp_domain=${wmdp_domain} trainer=SimNPO task_name=${version}_${model}_${wmdp_domain}_SimNPO
-${common} model=${model} wmdp_domain=${wmdp_domain} trainer=UNDIAL task_name=${version}_${model}_${wmdp_domain}_UNDIAL
+${common} model=${model} wmdp_domain=${wmdp_domain} trainer=UNDIAL task_name=${version}_${model}_${wmdp_domain}_UNDIAL2
 
 # RepSelect ablations (all use wide LR range for fair comparison)
 ${common} model=${model} wmdp_domain=${wmdp_domain} trainer=RepSelect hydra/sweeper=RepSelect_wide task_name=${version}_${model}_${wmdp_domain}_RepSelect_wide

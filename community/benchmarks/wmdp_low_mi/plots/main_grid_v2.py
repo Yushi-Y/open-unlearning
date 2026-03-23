@@ -199,15 +199,16 @@ def plot_comparison(
 
 storage = get_storage()
 
-# Method names from run.sh (shared across both benchmarks)
-method_names = [
-    "GradDiff",
-    "NPO",
-    "RMU",
-    "SimNPO",
-    "UNDIAL",
-    "RepSelect",
-]
+# Display labels for methods
+titles_dict = {
+    "SimNPO": "SimNPO",
+    "UNDIAL2": "UNDIAL",
+    "RMU2": "RMU",
+    "GradDiff2": "GradDiff",
+    "NPO": "NPO",
+    "RepSelect": "RepSelect",
+}
+method_names = list(titles_dict.keys())
 
 # WMDP-Bio on Qwen2.5-3B (from wmdp_low_mi/run.sh)
 print("Loading WMDP-Bio studies:")
@@ -240,23 +241,13 @@ wmdp_stats, wmdp_baseline = get_stats_from_studies(wmdp_studies, reference_basel
 print("\nBeaverTails animal_abuse (gemma-2-2b):")
 bt_stats, bt_baseline = get_stats_from_studies(bt_studies, reference_baseline=bt_reference, top_n=top_n)
 
-# Display labels for methods
-titles_dict = {
-    "SimNPO": "SimNPO",
-    "UNDIAL": "UNDIAL",
-    "RMU": "RMU",
-    "GradDiff": "GradDiff",
-    "NPO": "NPO",
-    "RepSelect": "RepSelect",
-}
-
 # Create the plot
 fig = plot_comparison(
     left_stats=wmdp_stats,
     right_stats=bt_stats,
     left_baseline=wmdp_baseline,
     right_baseline=bt_baseline,
-    method_names=list(titles_dict.keys()),
+    method_names=method_names,
     left_title="WMDP-Bio (Qwen2.5-3B)",
     right_title="BeaverTails (gemma-2-2b)",
     left_xlabel="WMDP-Bio Answer Probability (%)",
