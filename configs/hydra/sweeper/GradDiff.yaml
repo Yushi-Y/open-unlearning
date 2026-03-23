@@ -1,4 +1,6 @@
 # @package hydra.sweeper
+defaults:
+  - optuna
 params:
   trainer.args.learning_rate: "tag(log, interval(1e-7, 5e-6))"
   trainer.method_args.alpha: "tag(log, interval(1, 10))"
