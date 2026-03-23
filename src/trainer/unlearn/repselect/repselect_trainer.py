@@ -46,17 +46,18 @@ class RepSelect(UnlearnTrainer):
                     module.register_full_backward_hook(self.collapse_hook)
 
                     # initialize collapsers
-                    # module.act_collapser = IncrementalPCACollapser(cfg.n_pcs, self.model.device)
-                    # module.grad_collapser = IncrementalPCACollapser(cfg.n_pcs, self.model.device)
-                    module.act_collapser = CovStoringCollapser(
-                        cfg.n_pcs, self.model.device
-                    )
-                    module.grad_collapser = CovStoringCollapser(
-                        cfg.n_pcs, self.model.device
-                    )
+                    if "n_pcs" in cfg:
+                        # module.act_collapser = IncrementalPCACollapser(cfg.n_pcs, self.model.device)
+                        # module.grad_collapser = IncrementalPCACollapser(cfg.n_pcs, self.model.device)
+                        module.act_collapser = CovStoringCollapser(
+                            cfg.n_pcs, self.model.device
+                        )
+                        module.grad_collapser = CovStoringCollapser(
+                            cfg.n_pcs, self.model.device
+                        )
 
                     # ! adversarial LoRA
-                    if "lora_rank" in cfg:
+                    if "lora_lr" in cfg:
                         module.lora_module = ManualLoRA(
                             module.weight.shape[1],  # in_features
                             module.weight.shape[0],  # out_features
@@ -161,28 +162,30 @@ class RepSelect(UnlearnTrainer):
             grads = grads[self.token_mask]
 
         # note: we could optimize and reuse the act collapser for gate_proj and up_proj, but for simplicity don't
-        module.act_collapser.add_vecs(acts)
-        module.grad_collapser.add_vecs(grads)
+        if "n_pcs" in self.cfg:
+            module.act_collapser.add_vecs(acts)
+            module.grad_collapser.add_vecs(grads)
 
         if self.batch_idx < self.recalc_every:
             return  # too early to train, so only collect activations and return early
 
-        pure_acts = module.act_collapser.collapse(acts)
-        pure_grads = module.grad_collapser.collapse(grads)
+        if "n_pcs" in self.cfg:
+            acts = module.act_collapser.collapse(acts)
+            grads = module.grad_collapser.collapse(grads)
 
         # ! KL-masking, per token and per module
         if "retain_momentum" in self.cfg:
             ref_grad = dequantize_blockwise(*module.weight.ref_grad)
             ref_grad = ref_grad.to(module.weight.dtype)
             # calculating this on purified acts and grads makes filtering more accurate
-            token_disr = pt.einsum("ij,ti,tj->t", ref_grad, pure_grads, pure_acts)
+            token_disr = pt.einsum("ij,ti,tj->t", ref_grad, grads, acts)
 
             kl_mask = token_disr > 0
-            pure_acts = pure_acts[kl_mask]
-            pure_grads = pure_grads[kl_mask]
+            acts = acts[kl_mask]
+            grads = grads[kl_mask]
 
         # without acts and grads modifications, this is equivalent to normal backprop
-        module.weight.grad = pt.einsum("ti,tj->ij", pure_grads, pure_acts)
+        module.weight.grad = pt.einsum("ti,tj->ij", grads, acts)
 
     def lora_forward_hook(self, module, args, output):
         if self.use_hooks:
