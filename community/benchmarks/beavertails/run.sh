@@ -33,28 +33,32 @@ version=v5
 
 common="${common} model=${model} category=${category}"
 reference="${reference} model=${model} category=${category}"
+prefix="${version}_${model}_${category}"
 
-${reference} trainer=GradDiff task_name=${version}_${model}_${category}_reference
+${reference} trainer=GradDiff task_name=${prefix}_reference
 
 # Main experiments
-${common} trainer=RepSelect hydra/sweeper=RepSelect task_name=${version}_${model}_${category}_RepSelect
-${common} trainer=GradDiff hydra/sweeper=GradDiff task_name=${version}_${model}_${category}_GradDiff2
-${common} trainer=NPO hydra/sweeper=NPO task_name=${version}_${model}_${category}_NPO
-${common} trainer=RMU hydra/sweeper=RMU task_name=${version}_${model}_${category}_RMU2
-${common} trainer=SimNPO hydra/sweeper=SimNPO task_name=${version}_${model}_${category}_SimNPO
-${common} trainer=UNDIAL hydra/sweeper=UNDIAL task_name=${version}_${model}_${category}_UNDIAL2
+${common} trainer=RepSelect hydra/sweeper=RepSelect task_name=${prefix}_RepSelect
+${common} trainer=GradDiff hydra/sweeper=GradDiff task_name=${prefix}_GradDiff2
+${common} trainer=NPO hydra/sweeper=NPO task_name=${prefix}_NPO
+${common} trainer=RMU hydra/sweeper=RMU task_name=${prefix}_RMU2
+${common} trainer=SimNPO hydra/sweeper=SimNPO task_name=${prefix}_SimNPO
+${common} trainer=UNDIAL hydra/sweeper=UNDIAL task_name=${prefix}_UNDIAL2
 
 # RepSelect ablations (all use wide LR range for fair comparison)
-${common} trainer=RepSelect hydra/sweeper=RepSelect_wide task_name=${version}_${model}_${category}_RepSelect_wide2
-${common} trainer=RepSelect hydra/sweeper=RepSelect_no_lora '~trainer.method_args.cfg.lora_lr' task_name=${version}_${model}_${category}_RepSelect_no_lora2
-${common} trainer=RepSelect hydra/sweeper=RepSelect_no_retain '~trainer.method_args.cfg.retain_momentum' task_name=${version}_${model}_${category}_RepSelect_no_retain2
-${common} trainer=RepSelect hydra/sweeper=RepSelect_no_pcs '~trainer.method_args.cfg.n_pcs' task_name=${version}_${model}_${category}_RepSelect_no_pcs2
+${common} trainer=RepSelect hydra/sweeper=RepSelect_wide task_name=${prefix}_RepSelect_wide2
+${common} trainer=RepSelect hydra/sweeper=RepSelect_no_lora '~trainer.method_args.cfg.lora_lr' task_name=${prefix}_RepSelect_no_lora2
+${common} trainer=RepSelect hydra/sweeper=RepSelect_no_retain '~trainer.method_args.cfg.retain_momentum' task_name=${prefix}_RepSelect_no_retain2
+${common} trainer=RepSelect hydra/sweeper=RepSelect_no_pcs '~trainer.method_args.cfg.n_pcs' task_name=${prefix}_RepSelect_no_pcs2
 
 # High disruption experiments
 common="$common eval.wikitext.disr_budget=0.1"
-${common} trainer=RepSelect hydra/sweeper=RepSelect_highdisr task_name=${version}_${model}_${category}_RepSelect_highdisr
-${common} trainer=GradDiff hydra/sweeper=GradDiff task_name=${version}_${model}_${category}_GradDiff2_highdisr
-${common} trainer=NPO hydra/sweeper=NPO task_name=${version}_${model}_${category}_NPO_highdisr
-${common} trainer=RMU hydra/sweeper=RMU task_name=${version}_${model}_${category}_RMU2_highdisr
-${common} trainer=SimNPO hydra/sweeper=SimNPO task_name=${version}_${model}_${category}_SimNPO_highdisr
-${common} trainer=UNDIAL hydra/sweeper=UNDIAL task_name=${version}_${model}_${category}_UNDIAL2_highdisr
+${common} trainer=RepSelect hydra/sweeper=RepSelect_highdisr task_name=${prefix}_RepSelect_highdisr
+${common} trainer=GradDiff hydra/sweeper=GradDiff task_name=${prefix}_GradDiff2_highdisr
+${common} trainer=NPO hydra/sweeper=NPO task_name=${prefix}_NPO_highdisr
+${common} trainer=RMU hydra/sweeper=RMU task_name=${prefix}_RMU2_highdisr
+${common} trainer=SimNPO hydra/sweeper=SimNPO task_name=${prefix}_SimNPO_highdisr
+${common} trainer=UNDIAL hydra/sweeper=UNDIAL task_name=${prefix}_UNDIAL2_highdisr
+
+
+${common} trainer=RepSelectCohen hydra/sweeper=RepSelect_wide task_name=${prefix}_RepSelectCohen
