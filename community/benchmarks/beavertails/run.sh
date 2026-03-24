@@ -51,7 +51,7 @@ ${common} trainer=RepSelect hydra/sweeper=RepSelect_no_retain '~trainer.method_a
 ${common} trainer=RepSelect hydra/sweeper=RepSelect_no_pcs '~trainer.method_args.cfg.n_pcs' task_name=${version}_${model}_${category}_RepSelect_no_pcs2
 
 # High disruption experiments
-common="$common eval.wikitext_kl.disr_budget=0.1"
+common="$common eval.wikitext.disr_budget=0.1"
 ${common} trainer=RepSelect hydra/sweeper=RepSelect_highdisr task_name=${version}_${model}_${category}_RepSelect_highdisr
 ${common} trainer=GradDiff hydra/sweeper=GradDiff task_name=${version}_${model}_${category}_GradDiff2_highdisr
 ${common} trainer=NPO hydra/sweeper=NPO task_name=${version}_${model}_${category}_NPO_highdisr
