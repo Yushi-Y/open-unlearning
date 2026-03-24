@@ -76,8 +76,7 @@ class RepSelectCohen(UnlearnTrainer):
             mlp = self.model.model.layers[layer_num].mlp
             experts = mlp.experts if self.is_moe else [mlp]
             for expert in experts:
-                # for name, module in [("gate", expert.gate_proj), ("up", expert.up_proj), ("down", expert.down_proj)]:
-                for name, module in [("gate", expert.gate_proj), ("up", expert.up_proj)]:
+                for name, module in [("gate", expert.gate_proj), ("up", expert.up_proj), ("down", expert.down_proj)]:
                     module.proj_name = name
                     module.weight.requires_grad = True
                     self.base_trainable_params.append(module.weight)
