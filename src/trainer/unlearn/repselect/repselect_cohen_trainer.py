@@ -76,7 +76,13 @@ class RepSelectCohen(UnlearnTrainer):
             mlp = self.model.model.layers[layer_num].mlp
             experts = mlp.experts if self.is_moe else [mlp]
             for expert in experts:
-                for name, module in [("gate", expert.gate_proj), ("up", expert.up_proj), ("down", expert.down_proj)]:
+                
+                if cfg.get("only_down", False):
+                    modules = [("down", expert.down_proj)]
+                else:
+                    modules = [("gate", expert.gate_proj), ("up", expert.up_proj), ("down", expert.down_proj)]
+
+                for name, module in modules:
                     module.proj_name = name
                     module.weight.requires_grad = True
                     self.base_trainable_params.append(module.weight)
@@ -92,9 +98,9 @@ class RepSelectCohen(UnlearnTrainer):
                         module.act_collapser = CovStoringCollapser(
                             cfg.n_pcs, self.model.device
                         )
-                        module.grad_collapser = CovStoringCollapser(
-                            cfg.n_pcs, self.model.device
-                        )
+                        # module.grad_collapser = CovStoringCollapser(
+                        #     cfg.n_pcs, self.model.device
+                        # )
 
                     # neuron-level stats for separability
                     module.forget_grad_stats = NeuronGradStats()
@@ -192,8 +198,8 @@ class RepSelectCohen(UnlearnTrainer):
             for module in model.modules():
                 if hasattr(module, "act_collapser"):
                     module.act_collapser.process_saved_vecs()
-                if hasattr(module, "grad_collapser"):
-                    module.grad_collapser.process_saved_vecs()
+                # if hasattr(module, "grad_collapser"):
+                #     module.grad_collapser.process_saved_vecs()
 
         normalize_grads(self.base_trainable_params)
         return forget_loss.detach()
@@ -246,7 +252,7 @@ class RepSelectCohen(UnlearnTrainer):
         # note: we could optimize and reuse the act collapser for gate_proj and up_proj, but for simplicity don't
         if "n_pcs" in self.cfg:
             module.act_collapser.add_vecs(acts)
-            module.grad_collapser.add_vecs(grads)
+            # module.grad_collapser.add_vecs(grads)
 
         if self.batch_idx < self.recalc_every:
             return  # too early to train, so only collect activations and return early

@@ -62,3 +62,6 @@ ${common} trainer=UNDIAL hydra/sweeper=UNDIAL task_name=${prefix}_UNDIAL2_highdi
 
 
 ${common} trainer=RepSelectCohen hydra/sweeper=RepSelect_wide task_name=${prefix}_RepSelectCohen
+${common} trainer=RepSelectCohen hydra/sweeper=RepSelect_wide trainer.method_args.cfg.only_down=True task_name=${prefix}_RepSelectCohen_onlydown
+${common} trainer=RepSelectCohen hydra/sweeper=RepSelect_no_retain '~trainer.method_args.cfg.retain_momentum' task_name=${prefix}_RepSelectCohen_no_retain
+${common} trainer=RepSelectCohen hydra/sweeper=RepSelect_no_retain '~trainer.method_args.cfg.retain_momentum' trainer.method_args.cfg.only_down=True task_name=${prefix}_RepSelectCohen_no_retain_onlydown
