@@ -98,6 +98,9 @@ hydra:
   sweeper:
     # hyperparam range loaded from /sweep config group in configs/trainer/*.yaml files
     _target_: hydra_plugins.hydra_optuna_sweeper.optuna_sweeper.OptunaSweeper
+    max_failure_rate: 0.0
+    search_space: null
+    custom_search_space: null
     storage: ${oc.env:OPTUNA_STORAGE_URL}
     study_name: ${task_name}
     direction: ${optimize_direction}
