@@ -76,15 +76,11 @@ class RepSelectCohen(UnlearnTrainer):
             mlp = self.model.model.layers[layer_num].mlp
             experts = mlp.experts if self.is_moe else [mlp]
             for expert in experts:
-                
-                if cfg.get("only_down", False):
-                    modules = [("down", expert.down_proj)]
-                else:
-                    modules = [("gate", expert.gate_proj), ("up", expert.up_proj), ("down", expert.down_proj)]
-
+                modules = [("gate", expert.gate_proj), ("up", expert.up_proj), ("down", expert.down_proj)]
                 for name, module in modules:
                     module.proj_name = name
                     module.weight.requires_grad = True
+                    module.parent_expert = [expert]
                     self.base_trainable_params.append(module.weight)
 
                     # install hooks
@@ -262,12 +258,13 @@ class RepSelectCohen(UnlearnTrainer):
             # grads = module.grad_collapser.collapse(grads)
 
         # ! neuron separability weighting (Cohen's d)
-        if module.forget_grad_stats.count > 0 and module.retain_grad_stats.count > 0:
-            d = cohens_d(module.forget_grad_stats, module.retain_grad_stats)
-            if module.proj_name == "down":
-                acts = acts * d.unsqueeze(0)    # d has intermediate dim, same as acts
-            else:
-                grads = grads * d.unsqueeze(0)  # d has intermediate dim, same as grads
+        forget_grad_stats = module.parent_expert[0].down_proj.forget_grad_stats
+        retain_grad_stats = module.parent_expert[0].down_proj.retain_grad_stats
+        d = cohens_d(forget_grad_stats, retain_grad_stats)
+        if module.proj_name == "down":
+            acts = acts * d.unsqueeze(0)    # d has intermediate dim, same as acts
+        else:
+            grads = grads * d.unsqueeze(0)  # d has intermediate dim, same as grads
 
         # ! KL-masking, per token and per module
         if "retain_momentum" in self.cfg:
