@@ -2,6 +2,7 @@
 import logging
 import math
 import random
+from typing import Iterable
 
 import torch as pt
 from bitsandbytes.functional import dequantize_blockwise, quantize_blockwise
@@ -9,7 +10,7 @@ from bitsandbytes.functional import dequantize_blockwise, quantize_blockwise
 from data.utils import batched, prep_batch
 from evals.kl_eval import KLComputor
 from trainer.unlearn.base import UnlearnTrainer
-from trainer.unlearn.repselect.collapsers import CovStoringCollapser
+from trainer.unlearn.repselect.collapsers import CovCollapser
 from trainer.unlearn.repselect.utils import get_banned_tokens, ManualLoRA
 from trainer.utils import label_logits, normalize_grads
 
@@ -36,6 +37,7 @@ class RepSelect(UnlearnTrainer):
         for layer_num in range(len(self.model.model.layers)):
             mlp = self.model.model.layers[layer_num].mlp
             experts = mlp.experts if self.is_moe else [mlp]
+            assert isinstance(experts, Iterable), "For new MoE implementation, please use RepSelectMOE"  # fmt: skip
             for expert in experts:
                 for module in [expert.gate_proj, expert.up_proj, expert.down_proj]:
                     module.weight.requires_grad = True
@@ -47,14 +49,10 @@ class RepSelect(UnlearnTrainer):
 
                     # initialize collapsers
                     if "n_pcs" in cfg:
-                        # module.act_collapser = IncrementalPCACollapser(cfg.n_pcs, self.model.device)
-                        # module.grad_collapser = IncrementalPCACollapser(cfg.n_pcs, self.model.device)
-                        module.act_collapser = CovStoringCollapser(
-                            cfg.n_pcs, self.model.device
-                        )
-                        module.grad_collapser = CovStoringCollapser(
-                            cfg.n_pcs, self.model.device
-                        )
+                        # module.act_collapser = IncrementalPCACollapser(cfg.n_pcs)
+                        # module.grad_collapser = IncrementalPCACollapser(cfg.n_pcs)
+                        module.act_collapser = CovCollapser(cfg.n_pcs)
+                        module.grad_collapser = CovCollapser(cfg.n_pcs)
 
                     # ! adversarial LoRA
                     if "lora_lr" in cfg:
@@ -67,6 +65,7 @@ class RepSelect(UnlearnTrainer):
                         module.register_forward_hook(self.lora_forward_hook)
 
         # ! prepare retain
+        self.kl_computor = None
         if "retain_momentum" in self.cfg:
             # pre-cache retain batches (needed for storing data for KL computation)
             self.retain_batches = [
@@ -75,10 +74,13 @@ class RepSelect(UnlearnTrainer):
                     self.train_dataset.retain, self.args.per_device_train_batch_size
                 )
             ]
-            self.kl_computor = KLComputor(self.model, self.retain_batches)
 
     def training_step(self, model, inputs, num_items_in_batch=None):
         model.train()
+
+        # Lazy init KLComputor (model is guaranteed on CUDA here)
+        if self.kl_computor is None and "retain_momentum" in self.cfg:
+            self.kl_computor = KLComputor(self.model, self.retain_batches)
 
         # ! retain pass
         if "retain_momentum" in self.cfg and self.batch_idx >= self.recalc_every:
@@ -177,12 +179,18 @@ class RepSelect(UnlearnTrainer):
         if "retain_momentum" in self.cfg:
             ref_grad = dequantize_blockwise(*module.weight.ref_grad)
             ref_grad = ref_grad.to(module.weight.dtype)
-            # calculating this on purified acts and grads makes filtering more accurate
-            token_disr = pt.einsum("ij,ti,tj->t", ref_grad, grads, acts)
 
+            token_disr = pt.einsum("ij,ti,tj->t", ref_grad, grads, acts)
             kl_mask = token_disr > 0
             acts = acts[kl_mask]
             grads = grads[kl_mask]
+
+            # # the core of DisrCollapse that can be swapped for the block above:
+            # disr_grad = acts @ ref_grad.T
+            # disr_grad /= disr_grad.norm(dim=1, keepdim=True) + 1e-8
+            # projections = pt.einsum("tg,tg->t", disr_grad, grads).unsqueeze(1)
+            # projections = projections.clamp(max=0)
+            # grads -= projections * disr_grad
 
         # without acts and grads modifications, this is equivalent to normal backprop
         module.weight.grad = pt.einsum("ti,tj->ij", grads, acts)

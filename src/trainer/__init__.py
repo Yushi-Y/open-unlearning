@@ -17,7 +17,8 @@ from trainer.unlearn.wga import WGA
 from trainer.unlearn.pdu import PDU
 from trainer.unlearn.repselect.repselect_trainer import RepSelect
 from trainer.unlearn.repselect.repselect_cohen_trainer import RepSelectCohen
-
+from trainer.unlearn.repselect.repselect_moe_trainer import RepSelectMOE
+from trainer.unlearn.repselect.disrcollapse_trainer import DisrCollapse
 import logging
 
 logger = logging.getLogger(__name__)
@@ -102,3 +103,5 @@ _register_trainer(WGA)
 _register_trainer(PDU)
 _register_trainer(RepSelect)
 _register_trainer(RepSelectCohen)
+_register_trainer(RepSelectMOE)
+_register_trainer(DisrCollapse)

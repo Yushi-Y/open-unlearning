@@ -5,17 +5,34 @@ import subprocess
 
 import modal
 
+
+def download_models():
+    from huggingface_hub import snapshot_download
+    # note that modal images are up to 30GB, so be mindful of what models you fit
+
+    for model in [
+        # "allenai/OLMoE-1B-7B-0125",
+        "google/gemma-2-2b",
+    ]:
+        snapshot_download(model)
+
+
 image = (
     modal.Image.from_registry("nvidia/cuda:12.8.0-devel-ubuntu22.04", add_python="3.11")
     .apt_install("git")
     .pip_install_from_requirements("requirements.txt")
     .pip_install("lm-eval==0.4.11")
-    .pip_install("flash-attn==2.6.3", extra_options="--no-build-isolation")
+    # .pip_install("flash-attn==2.6.3", extra_options="--no-build-isolation")
+    # .pip_install("flash-attn==2.8.3", extra_options="--no-build-isolation")
     # if we move to torch>2.5, we need to use pre-built wheels from here, because the build is painfully slow
     # also to support B200, flash-attn==2.6.3 is too old, we'd need to bump to e.g. 2.8.3
-    # .pip_install(
-    #     "https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.7.12/flash_attn-2.8.3+cu128torch2.10-cp311-cp311-linux_x86_64.whl"
-    # )
+    .pip_install(
+        # "https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.7.12/flash_attn-2.8.3+cu128torch2.10-cp311-cp311-linux_x86_64.whl"
+        "https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.7.16/flash_attn-2.8.3+cu128torch2.9-cp311-cp311-linux_x86_64.whl"
+    )
+    .env({"HF_HUB_ENABLE_HF_TRANSFER": "1"})
+    .pip_install("hf_transfer")
+    .run_function(download_models, secrets=[modal.Secret.from_dotenv()])
     .add_local_dir("data", remote_path="/root/code/data")
     .add_local_dir(".cache/load_hf", remote_path="/root/code/.cache/load_hf")
     .add_local_dir("configs", remote_path="/root/code/configs")
@@ -31,7 +48,7 @@ app = modal.App("open-unlearning", image=image)
     # gpu="H100",
     # gpu="H200",
     # gpu="B200",
-    timeout=1 * 3600,
+    timeout=3 * 3600,
     secrets=[modal.Secret.from_dotenv()],
 )
 def run_training(args: str):
