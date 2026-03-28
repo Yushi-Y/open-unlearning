@@ -1,0 +1,7 @@
+- 4-page EMNLP short paper submission. Do not go over page limits; everything else goes to appendix.
+- Very high writing standards: NeurIPS oral style. Clear, concise, high language density, very precise word choice, easy to read, and importantly, logically coherent and very engaging!
+- Never use '---' in writing.
+- Novelty is most important; RQ must be framed very clearly, timely and novel RQ focus on building (long-term) user profile/preference understanding during complex agentic tasks.
+- Use three contributions bullet points. Refer to the RLPA paper logic of contribution, but do not say "we build on it" in contributions (cite it in related work and relevant places).
+- Citations must be fully verified (exact title, authors, venue, link). Paper will be desk-rejected for hallucinated citations. Keep only first five authors per bib entry.
+- Before modication, automatically pull from overleaf. After modification, automatically push to overleaf.

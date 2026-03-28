@@ -87,13 +87,13 @@ def collect_last_hidden(model, tokenizer, dataset, collator, target_module, capt
 
 def analyze_pcs(eig_vec, eig_val, steering_vec_norm, forget_hidden, retain_hidden,
                 forget_texts, retain_texts, mean, collapser_type):
-    """Analyze one set of PCs (act or grad): steering alignment + F/R ratio + top sequences."""
+    """Analyze one set of PCs (act): steering alignment + F/R ratio + top sequences."""
     n_pcs = eig_vec.shape[1]
     device = eig_vec.device
 
     high_pc_indices = list(range(min(N_PCS_TO_SHOW, n_pcs)))
     low_pc_indices = list(range(max(0, n_pcs - N_PCS_TO_SHOW), n_pcs))
-    pc_indices = high_pc_indices + low_pc_indices
+    pc_indices = sorted(set(high_pc_indices + low_pc_indices))
 
     # --- Steering alignment for ALL PCs ---
     all_alignment = []
@@ -117,9 +117,12 @@ def analyze_pcs(eig_vec, eig_val, steering_vec_norm, forget_hidden, retain_hidde
         f_proj = ((forget_hidden - mean_dev) @ pc)
         r_proj = ((retain_hidden - mean_dev) @ pc)
 
+        f_signed_mean = f_proj.mean().item()
+        r_signed_mean = r_proj.mean().item()
         f_abs_mean = f_proj.abs().mean().item()
         r_abs_mean = r_proj.abs().mean().item()
         ratio = f_abs_mean / r_abs_mean if r_abs_mean > 0 else float("inf")
+        separation = f_signed_mean - r_signed_mean  # positive = forget is "more" in PC direction
 
         # Top sequences by absolute projection
         top_k = min(TOP_K_SEQUENCES, len(forget_texts))
@@ -129,15 +132,18 @@ def analyze_pcs(eig_vec, eig_val, steering_vec_norm, forget_hidden, retain_hidde
         pc_details.append({
             "pc_index": pc_i,
             "eigenvalue": eig_val[pc_i].item(),
-            "variance_type": "high" if pc_i in high_pc_indices else "low",
-            "forget_mean": f_abs_mean,
-            "retain_mean": r_abs_mean,
+            "variance_type": "both" if pc_i in high_pc_indices and pc_i in low_pc_indices else ("high" if pc_i in high_pc_indices else "low"),
+            "forget_signed_mean": f_signed_mean,
+            "retain_signed_mean": r_signed_mean,
+            "forget_abs_mean": f_abs_mean,
+            "retain_abs_mean": r_abs_mean,
             "forget_to_retain_ratio": ratio,
+            "signed_separation": separation,
             "forget_top_sequences": [
-                {"score": f_proj[i].abs().item(), "text": forget_texts[i]} for i in f_top
+                {"score": f_proj[i].item(), "abs_score": f_proj[i].abs().item(), "text": forget_texts[i]} for i in f_top
             ],
             "retain_top_sequences": [
-                {"score": r_proj[i].abs().item(), "text": retain_texts[i]} for i in r_top
+                {"score": r_proj[i].item(), "abs_score": r_proj[i].abs().item(), "text": retain_texts[i]} for i in r_top
             ],
         })
 
@@ -146,6 +152,9 @@ def analyze_pcs(eig_vec, eig_val, steering_vec_norm, forget_hidden, retain_hidde
     low_align = [a["abs_cosine"] for a in all_alignment if a["pc_index"] >= n_pcs - N_PCS_TO_SHOW]
 
     sorted_alignment = sorted(all_alignment, key=lambda x: x["abs_cosine"], reverse=True)
+
+    high_sep = [d["signed_separation"] for d in pc_details if d["pc_index"] < N_PCS_TO_SHOW]
+    low_sep = [d["signed_separation"] for d in pc_details if d["pc_index"] >= n_pcs - N_PCS_TO_SHOW]
 
     return {
         "collapser_type": collapser_type,
@@ -157,6 +166,10 @@ def analyze_pcs(eig_vec, eig_val, steering_vec_norm, forget_hidden, retain_hidde
             "top_aligned": sorted_alignment[:15],
             "all": all_alignment,
         },
+        "signed_separation_summary": {
+            "high_var_mean_abs_sep": sum(abs(s) for s in high_sep) / len(high_sep) if high_sep else 0,
+            "low_var_mean_abs_sep": sum(abs(s) for s in low_sep) / len(low_sep) if low_sep else 0,
+        },
         "pc_details": pc_details,
     }
 
@@ -167,6 +180,7 @@ def main(cfg: DictConfig):
 
     # --- 1. Setup ---
     model, tokenizer = get_model(cfg.model)
+    model = model.cuda()
     data = get_data(cfg.data, mode="unlearn", tokenizer=tokenizer, template_args=cfg.model.template_args)
     collator = get_collators(cfg.collator, tokenizer=tokenizer)
     trainer, _ = load_trainer(
@@ -175,6 +189,16 @@ def main(cfg: DictConfig):
         processing_class=tokenizer, data_collator=collator,
         evaluators=None, template_args=cfg.model.template_args,
     )
+
+    # Replace grad collapsers with no-op to save memory — this script only uses activation PCs
+    class _NoOpCollapser:
+        """Dummy collapser that stores nothing and returns input unchanged."""
+        def add_vecs(self, vecs): pass
+        def collapse(self, vecs): return vecs
+        def process_saved_vecs(self): pass
+    for module in model.modules():
+        if hasattr(module, "grad_collapser"):
+            module.grad_collapser = _NoOpCollapser()
 
     print("=" * 60)
     print("Training to collect PCA statistics...")
@@ -188,7 +212,7 @@ def main(cfg: DictConfig):
         for module in model.modules():
             if hasattr(module, "act_collapser") and module.act_collapser.online_cov.count > 0:
                 module.act_collapser.process_saved_vecs()
-            if hasattr(module, "grad_collapser") and module.grad_collapser.online_cov.count > 0:
+            if hasattr(module, "grad_collapser") and hasattr(module.grad_collapser, "online_cov") and module.grad_collapser.online_cov.count > 0:
                 module.grad_collapser.process_saved_vecs()
         print("Manually computed PCs after 1 epoch (no weight changes).")
     else:
@@ -281,21 +305,26 @@ def main(cfg: DictConfig):
     print(f"\nResults saved to: {out_path}")
 
     # --- 5. Print summary table ---
-    print(f"\n{'=' * 80}")
-    print(f"{'Layer':>6} {'Type':>10} {'High-var |cos|':>15} {'Low-var |cos|':>15} {'Ratio (H/L)':>12}")
-    print(f"{'-' * 80}")
+    print(f"\n{'=' * 100}")
+    print(f"{'Layer':>6} {'Type':>10} {'High |cos|':>12} {'Low |cos|':>12} {'cos H/L':>10} {'High |sep|':>12} {'Low |sep|':>12} {'sep H/L':>10}")
+    print(f"{'-' * 100}")
     for key, lr in all_results.items():
         if "activation_pcs" not in lr:
             continue
         sa = lr["activation_pcs"]["steering_alignment"]
-        h = sa["high_var_mean_abs_cosine"]
-        l = sa["low_var_mean_abs_cosine"]
-        ratio = h / l if l > 0 else float("inf")
-        print(f"  {lr['layer']:4d} {'act':>10} {h:15.4f} {l:15.4f} {ratio:12.1f}")
+        ss = lr["activation_pcs"]["signed_separation_summary"]
+        h_cos = sa["high_var_mean_abs_cosine"]
+        l_cos = sa["low_var_mean_abs_cosine"]
+        cos_ratio = h_cos / l_cos if l_cos > 0 else float("inf")
+        h_sep = ss["high_var_mean_abs_sep"]
+        l_sep = ss["low_var_mean_abs_sep"]
+        sep_ratio = h_sep / l_sep if l_sep > 0 else float("inf")
+        print(f"  {lr['layer']:4d} {'act':>10} {h_cos:12.4f} {l_cos:12.4f} {cos_ratio:10.1f} {h_sep:12.4f} {l_sep:12.4f} {sep_ratio:10.1f}")
 
-    print(f"\n{'=' * 80}")
-    print("If High/Low ratio >> 1: high-var PCs align more with forget-retain direction")
-    print("If High/Low ratio << 1: low-var PCs align more (supports CIR hypothesis)")
+    print(f"\n{'=' * 100}")
+    print("cos H/L: steering alignment ratio (high-var / low-var PCs)")
+    print("sep H/L: signed separation ratio (high-var / low-var PCs)")
+    print("If ratios << 1: low-var PCs discriminate forget/retain more")
     print(f"\nJSON saved to {out_path}")
 
 
