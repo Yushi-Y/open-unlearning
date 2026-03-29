@@ -210,9 +210,9 @@ def main(cfg: DictConfig):
         # process_saved_vecs() won't fire automatically, so call it manually.
         trainer.train()
         for module in model.modules():
-            if hasattr(module, "act_collapser") and module.act_collapser.online_cov.count > 0:
+            if hasattr(module, "act_collapser") and module.act_collapser.online_cov._count > 0:
                 module.act_collapser.process_saved_vecs()
-            if hasattr(module, "grad_collapser") and hasattr(module.grad_collapser, "online_cov") and module.grad_collapser.online_cov.count > 0:
+            if hasattr(module, "grad_collapser") and hasattr(module.grad_collapser, "online_cov") and module.grad_collapser.online_cov._count > 0:
                 module.grad_collapser.process_saved_vecs()
         print("Manually computed PCs after 1 epoch (no weight changes).")
     else:

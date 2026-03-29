@@ -82,20 +82,27 @@ def main(cfg: DictConfig):
 
     # save last valid model (before any metric broke)
     comm_dir = Path(cfg.paths.tmp_comm_dir)
-    if trainer.last_valid_model_state is not None:
+    if trainer.last_valid_model_state is not None and comm_dir.exists():
         model.load_state_dict(trainer.last_valid_model_state)
         model.save_pretrained(comm_dir / "last_valid_model")
 
-    # * get the final score (if defined), and save to file for the unlearn_relearn script
-    if mode == "relearn":
+    # * get the final score (if defined), and save to file for the pipeline script
+    if trainer.eval_results_history and cfg.get("metric_to_optimize"):
         target_metric = cfg.metric_to_optimize
-        # relearning optimizes in the opposite direction to unlearning and the sweeper
-        # so for example when unlearning maximizes loss, then robutsness=min(relearning loss)
-        if cfg.optimize_direction == "minimize":
-            robustness = max(res[target_metric] for res in trainer.eval_results_history)
-        elif cfg.optimize_direction == "maximize":
-            robustness = min(res[target_metric] for res in trainer.eval_results_history)
-        
+        if mode == "relearn":
+            # relearning optimizes in the opposite direction to unlearning and the sweeper
+            # so for example when unlearning maximizes loss, then robutsness=min(relearning loss)
+            if cfg.optimize_direction == "minimize":
+                robustness = max(res[target_metric] for res in trainer.eval_results_history if target_metric in res)
+            elif cfg.optimize_direction == "maximize":
+                robustness = min(res[target_metric] for res in trainer.eval_results_history if target_metric in res)
+        else:
+            # unlearn mode: return the metric directly (best value across epochs)
+            if cfg.optimize_direction == "minimize":
+                robustness = min(res[target_metric] for res in trainer.eval_results_history if target_metric in res)
+            elif cfg.optimize_direction == "maximize":
+                robustness = max(res[target_metric] for res in trainer.eval_results_history if target_metric in res)
+
         (comm_dir / "robustness.txt").write_text(str(robustness))
         
 

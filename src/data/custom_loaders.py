@@ -63,31 +63,30 @@ def wmdp_low_mi(cfg, tokenizer, **kwargs):
     T = load_hf_cached(path=f"filypo/wmdp_{cfg.dataset}_T", split="train")
     V = load_hf_cached(path=f"filypo/wmdp_{cfg.dataset}_V", split="train")
 
-    full = concatenate_datasets([T, V])
-    mid = len(full) // 2
-    split1 = full.select(range(mid))
-    split2 = full.select(range(mid, len(full)))
-    logging.info(f"{len(full)=}, {len(split1)=}, {len(split2)=}")
+    T_and_V = concatenate_datasets([T, V])
+    eval_qs = T_and_V if cfg.get("eval_on_all_questions", False) else V
+    logging.info(f"{len(T)=}, {len(V)=}, {len(eval_qs)=}")
 
     training_samples = [
         _tokenize(q["sentences"][idx], tokenizer, cfg.tokenizer)
         for idx in range(cfg.num_examples_per_question)
-        for q in full
+        for q in T_and_V
     ]
 
     relearning_samples = [
         _tokenize(q["sentences"][idx], tokenizer, cfg.tokenizer)
         for idx in range(cfg.num_examples_per_question)
-        for q in split1
+        for q in T
     ]
 
-    recall_samples = _load_recall_samples(split2, cfg.tokenizer, tokenizer)
+    recall_samples = _load_recall_samples(eval_qs, cfg.tokenizer, tokenizer)
 
     return dict(
         forget=training_samples,
         relearn=relearning_samples,
         recall=recall_samples,
-        eval_qs=split2,
+        eval_qs=eval_qs,
+        fewshot_qs=T,  # raw questions for few-shot attack eval (relearn split)
     )
 
 
@@ -135,6 +134,15 @@ def beavertails(cfg, tokenizer, **kwargs):
 
     assert len(samples) == len_
     return {cfg.dataset_name: samples}
+
+
+def beavertails_fewshot_raw(cfg, **kwargs):
+    """Load raw BeaverTails prompt-response pairs for few-shot attack evaluation."""
+    ds = load_hf_cached("filypo/beavertails-curated", split=cfg.split)
+    texts = ds.filter(lambda x: x["label_correct"])
+    texts = texts.select(range(*cfg.range))
+    raw = [{"prompt": t["prompt"], "response": t["response"]} for t in texts]
+    return {cfg.dataset_name: raw}
 
 
 def beavertails_curated(cfg, tokenizer, **kwargs):

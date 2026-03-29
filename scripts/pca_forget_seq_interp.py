@@ -152,7 +152,7 @@ def main(cfg: DictConfig):
     if n_epochs <= 1:
         trainer.train()
         for module in model.modules():
-            if hasattr(module, "act_collapser") and module.act_collapser.online_cov.count > 0:
+            if hasattr(module, "act_collapser") and module.act_collapser.online_cov._count > 0:
                 module.act_collapser.process_saved_vecs()
         print("Manually computed PCs after 1 epoch.")
     else:
