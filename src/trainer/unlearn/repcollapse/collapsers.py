@@ -1,6 +1,6 @@
 import torch as pt
 # from torch_incremental_pca import IncrementalPCA
-from trainer.unlearn.repselect.online_covariance import OnlineCovariance
+from trainer.unlearn.repcollapse.online_covariance import OnlineCovariance
 # todo uninstall welford_torch
 
 

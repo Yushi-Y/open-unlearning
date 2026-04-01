@@ -86,7 +86,7 @@ Experiments validate that high-variance PCs encode the attacker's subspace (doma
 
 **Expected finding:** Baselines show large loss increases on prominent domain tokens (high-variance PC tokens from Exp 1). RepCollapse shows minimal change on these tokens. This is the "tip of the iceberg" -- real selectivity gains are in internal representations, but token-level loss is concrete and visualizable.
 
-**Framing (from Filip):** "Both our and their methods aim to forget. Their methods inadvertently attack the most prominent (most general) features." The failure mode is selectivity, not intent.
+**Framing:** "Both our and their methods aim to forget. Their methods inadvertently attack the most prominent (most general) features." The failure mode is selectivity, not intent.
 
 ## Summary
 

@@ -4,7 +4,7 @@
 # Usage: bash scripts/run_posthoc_eval.sh <model_path> <task_name> [gpu_id]
 #
 # Example:
-#   bash scripts/run_posthoc_eval.sh saves/unlearn/best_RepSelect_bio best_RepSelect_bio 0
+#   bash scripts/run_posthoc_eval.sh saves/unlearn/best_RepCollapse_bio best_RepCollapse_bio 0
 
 set -e
 cd /VData/kebl6672/open-unlearning

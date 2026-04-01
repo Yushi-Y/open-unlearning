@@ -1,4 +1,4 @@
-# python src/train.py --config-name=unlearn.yaml experiment=unlearn/wmdp_low_mi/default trainer=RepSelect task_name=SAMPLE_UNLEARN
+# python src/train.py --config-name=unlearn.yaml experiment=unlearn/wmdp_low_mi/default trainer=RepCollapse task_name=SAMPLE_UNLEARN
 import logging
 import math
 import random
@@ -10,7 +10,7 @@ from bitsandbytes.functional import dequantize_blockwise, quantize_blockwise
 from data.utils import batched, prep_batch
 from evals.kl_eval import KLComputor
 from trainer.unlearn.base import UnlearnTrainer
-from trainer.unlearn.repselect.utils import get_banned_tokens, ManualLoRA
+from trainer.unlearn.repcollapse.utils import get_banned_tokens, ManualLoRA
 from trainer.utils import normalize_grads
 
 logging.basicConfig(level=logging.INFO)

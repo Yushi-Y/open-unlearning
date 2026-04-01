@@ -1,4 +1,4 @@
-# python src/train.py --config-name=unlearn.yaml experiment=unlearn/wmdp_low_mi/default trainer=RepSelect task_name=SAMPLE_UNLEARN
+# python src/train.py --config-name=unlearn.yaml experiment=unlearn/wmdp_low_mi/default trainer=RepCollapse task_name=SAMPLE_UNLEARN
 import logging
 import math
 import random
@@ -10,15 +10,15 @@ from bitsandbytes.functional import dequantize_blockwise, quantize_blockwise
 from data.utils import batched, prep_batch
 from evals.kl_eval import KLComputor
 from trainer.unlearn.base import UnlearnTrainer
-from trainer.unlearn.repselect.collapsers import BatchedCovCollapser
-from trainer.unlearn.repselect.moe_patch import Identity, hooked_grouped_mm_experts_forward
-from trainer.unlearn.repselect.utils import get_banned_tokens, ManualLoRA  # noqa: F401
+from trainer.unlearn.repcollapse.collapsers import BatchedCovCollapser
+from trainer.unlearn.repcollapse.moe_patch import Identity, hooked_grouped_mm_experts_forward
+from trainer.unlearn.repcollapse.utils import get_banned_tokens, ManualLoRA  # noqa: F401
 from trainer.utils import normalize_grads
 
 logging.basicConfig(level=logging.INFO)
 
 
-class RepSelectMOE(UnlearnTrainer):
+class RepCollapseMOE(UnlearnTrainer):
     def __init__(self, cfg, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.cfg = cfg
@@ -33,7 +33,7 @@ class RepSelectMOE(UnlearnTrainer):
 
         assert hasattr(self.model.model.layers[0].mlp, "experts")
         assert getattr(self.model.config, '_experts_implementation', None) == 'grouped_mm', \
-            "RepSelectMOE requires experts_implementation='grouped_mm'"
+            "RepCollapseMOE requires experts_implementation='grouped_mm'"
         assert "lora_lr" not in cfg, "LoRA not yet supported for fused MoE params"
 
         self.model.requires_grad_(False)  # train only modules that we specify

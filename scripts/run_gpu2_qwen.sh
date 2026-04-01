@@ -14,7 +14,7 @@ echo "[$(date)] Exp 1: Token interp Qwen Bio..."
 python scripts/pca_token_interp.py \
     --config-name=unlearn.yaml \
     experiment=unlearn/wmdp_low_mi/default \
-    model=Qwen3-8B-Base trainer=RepSelect \
+    model=Qwen3-8B-Base trainer=RepCollapse \
     trainer.args.num_train_epochs=1 \
     trainer.args.eval_strategy=no \
     trainer.args.report_to=none \
@@ -26,7 +26,7 @@ echo "[$(date)] Exp 1: Token interp Qwen Cyber..."
 python scripts/pca_token_interp.py \
     --config-name=unlearn.yaml \
     experiment=unlearn/wmdp_low_mi/default \
-    model=Qwen3-8B-Base trainer=RepSelect \
+    model=Qwen3-8B-Base trainer=RepCollapse \
     wmdp_domain=cyber \
     trainer.args.num_train_epochs=1 \
     trainer.args.eval_strategy=no \
@@ -40,7 +40,7 @@ echo "[$(date)] Exp 2: Sequence interp Qwen Bio..."
 python scripts/pca_sequence_interp.py \
     --config-name=unlearn.yaml \
     experiment=unlearn/wmdp_low_mi/default \
-    model=Qwen3-8B-Base trainer=RepSelect \
+    model=Qwen3-8B-Base trainer=RepCollapse \
     trainer.args.num_train_epochs=1 \
     trainer.args.eval_strategy=no \
     trainer.args.report_to=none \
@@ -52,7 +52,7 @@ echo "[$(date)] Exp 2: Sequence interp Qwen Cyber..."
 python scripts/pca_sequence_interp.py \
     --config-name=unlearn.yaml \
     experiment=unlearn/wmdp_low_mi/default \
-    model=Qwen3-8B-Base trainer=RepSelect \
+    model=Qwen3-8B-Base trainer=RepCollapse \
     wmdp_domain=cyber \
     trainer.args.num_train_epochs=1 \
     trainer.args.eval_strategy=no \
@@ -66,7 +66,7 @@ echo "[$(date)] Exp 3: Forget seq interp Qwen Bio..."
 python scripts/pca_forget_seq_interp.py \
     --config-name=unlearn.yaml \
     experiment=unlearn/wmdp_low_mi/default \
-    model=Qwen3-8B-Base trainer=RepSelect \
+    model=Qwen3-8B-Base trainer=RepCollapse \
     trainer.args.num_train_epochs=1 \
     trainer.args.eval_strategy=no \
     trainer.args.report_to=none \
@@ -78,7 +78,7 @@ echo "[$(date)] Exp 3: Forget seq interp Qwen Cyber..."
 python scripts/pca_forget_seq_interp.py \
     --config-name=unlearn.yaml \
     experiment=unlearn/wmdp_low_mi/default \
-    model=Qwen3-8B-Base trainer=RepSelect \
+    model=Qwen3-8B-Base trainer=RepCollapse \
     wmdp_domain=cyber \
     trainer.args.num_train_epochs=1 \
     trainer.args.eval_strategy=no \
@@ -92,7 +92,7 @@ echo "[$(date)] Exp 4+6: Attack subspace Qwen Bio..."
 python scripts/attack_subspace.py \
     --config-name=unlearn.yaml \
     experiment=unlearn/wmdp_low_mi/default \
-    model=Qwen3-8B-Base trainer=RepSelect \
+    model=Qwen3-8B-Base trainer=RepCollapse \
     trainer.args.num_train_epochs=1 \
     trainer.args.eval_strategy=no \
     trainer.args.report_to=none \
@@ -103,7 +103,7 @@ echo "[$(date)] Exp 4+6: Attack subspace Qwen Cyber..."
 python scripts/attack_subspace.py \
     --config-name=unlearn.yaml \
     experiment=unlearn/wmdp_low_mi/default \
-    model=Qwen3-8B-Base trainer=RepSelect \
+    model=Qwen3-8B-Base trainer=RepCollapse \
     wmdp_domain=cyber \
     trainer.args.num_train_epochs=1 \
     trainer.args.eval_strategy=no \

@@ -17,7 +17,7 @@ echo "[$(date)] Exp 7: Cross PCA similarity Llama Bio..."
 python3 scripts/pca_cross_similarity.py \
     --config-name=unlearn.yaml \
     experiment=unlearn/wmdp_low_mi/default \
-    model=Llama-3.2-3B trainer=RepSelect \
+    model=Llama-3.2-3B trainer=RepCollapse \
     trainer.args.num_train_epochs=1 \
     trainer.args.eval_strategy=no \
     trainer.args.report_to=none \
@@ -28,7 +28,7 @@ echo "[$(date)] Exp 7: Cross PCA similarity Llama Cyber..."
 python3 scripts/pca_cross_similarity.py \
     --config-name=unlearn.yaml \
     experiment=unlearn/wmdp_low_mi/default \
-    model=Llama-3.2-3B trainer=RepSelect \
+    model=Llama-3.2-3B trainer=RepCollapse \
     wmdp_domain=cyber \
     trainer.args.num_train_epochs=1 \
     trainer.args.eval_strategy=no \
@@ -42,7 +42,7 @@ python3 scripts/baseline_weight_projection.py \
     --config-name=unlearn.yaml \
     experiment=unlearn/wmdp_low_mi/default \
     model=Llama-3.2-3B \
-    trainer=RepSelect \
+    trainer=RepCollapse \
     trainer.args.eval_strategy=no \
     trainer.args.report_to=none \
     task_name=BASELINE_5M_LLAMA_BIO 2>&1

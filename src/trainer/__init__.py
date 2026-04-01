@@ -15,10 +15,10 @@ from trainer.unlearn.ceu import CEU
 from trainer.unlearn.satimp import SatImp
 from trainer.unlearn.wga import WGA
 from trainer.unlearn.pdu import PDU
-from trainer.unlearn.repselect.repselect_trainer import RepSelect
-from trainer.unlearn.repselect.repselect_cohen_trainer import RepSelectCohen
-from trainer.unlearn.repselect.repselect_moe_trainer import RepSelectMOE
-from trainer.unlearn.repselect.disrcollapse_trainer import DisrCollapse
+from trainer.unlearn.repcollapse.repcollapse_trainer import RepCollapse
+from trainer.unlearn.repcollapse.repcollapse_cohen_trainer import RepCollapseCohen
+from trainer.unlearn.repcollapse.repcollapse_moe_trainer import RepCollapseMOE
+from trainer.unlearn.repcollapse.disrcollapse_trainer import DisrCollapse
 import logging
 
 logger = logging.getLogger(__name__)
@@ -101,7 +101,7 @@ _register_trainer(CEU)
 _register_trainer(SatImp)
 _register_trainer(WGA)
 _register_trainer(PDU)
-_register_trainer(RepSelect)
-_register_trainer(RepSelectCohen)
-_register_trainer(RepSelectMOE)
+_register_trainer(RepCollapse)
+_register_trainer(RepCollapseCohen)
+_register_trainer(RepCollapseMOE)
 _register_trainer(DisrCollapse)

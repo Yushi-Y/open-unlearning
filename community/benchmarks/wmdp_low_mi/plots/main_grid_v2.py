@@ -206,7 +206,7 @@ titles_dict = {
     "RMU2": "RMU",
     "GradDiff2": "GradDiff",
     "NPO": "NPO",
-    "RepSelect": "RepSelect",
+    "RepCollapse": "RepCollapse",
 }
 method_names = list(titles_dict.keys())
 

@@ -18,7 +18,7 @@ echo "[$(date)] Exp 4+6: Attack subspace Qwen Bio..."
 python3 scripts/attack_subspace.py \
     --config-name=unlearn.yaml \
     experiment=unlearn/wmdp_low_mi/default \
-    model=Qwen3-8B-Base trainer=RepSelect \
+    model=Qwen3-8B-Base trainer=RepCollapse \
     trainer.args.num_train_epochs=1 \
     trainer.args.eval_strategy=no \
     trainer.args.report_to=none \
@@ -30,7 +30,7 @@ echo "[$(date)] Exp 4+6: Attack subspace Qwen Cyber..."
 python3 scripts/attack_subspace.py \
     --config-name=unlearn.yaml \
     experiment=unlearn/wmdp_low_mi/default \
-    model=Qwen3-8B-Base trainer=RepSelect \
+    model=Qwen3-8B-Base trainer=RepCollapse \
     wmdp_domain=cyber \
     trainer.args.num_train_epochs=1 \
     trainer.args.eval_strategy=no \
@@ -44,7 +44,7 @@ python3 scripts/baseline_weight_projection.py \
     --config-name=unlearn.yaml \
     experiment=unlearn/wmdp_low_mi/default \
     model=Qwen3-8B-Base \
-    trainer=RepSelect \
+    trainer=RepCollapse \
     trainer.args.eval_strategy=no \
     trainer.args.report_to=none \
     trainer.args.per_device_train_batch_size=4 \
@@ -55,7 +55,7 @@ echo "[$(date)] Exp 1: Token interp Gemma Bio..."
 python3 scripts/pca_token_interp.py \
     --config-name=unlearn.yaml \
     experiment=unlearn/wmdp_low_mi/default \
-    model=Gemma-3-1B trainer=RepSelect \
+    model=Gemma-3-1B trainer=RepCollapse \
     trainer.args.num_train_epochs=1 \
     trainer.args.eval_strategy=no \
     trainer.args.report_to=none \
@@ -66,7 +66,7 @@ echo "[$(date)] Exp 1: Token interp Gemma Cyber..."
 python3 scripts/pca_token_interp.py \
     --config-name=unlearn.yaml \
     experiment=unlearn/wmdp_low_mi/default \
-    model=Gemma-3-1B trainer=RepSelect \
+    model=Gemma-3-1B trainer=RepCollapse \
     wmdp_domain=cyber \
     trainer.args.num_train_epochs=1 \
     trainer.args.eval_strategy=no \
@@ -78,7 +78,7 @@ echo "[$(date)] Exp 3: Forget seq interp Gemma Bio..."
 python3 scripts/pca_forget_seq_interp.py \
     --config-name=unlearn.yaml \
     experiment=unlearn/wmdp_low_mi/default \
-    model=Gemma-3-1B trainer=RepSelect \
+    model=Gemma-3-1B trainer=RepCollapse \
     trainer.args.num_train_epochs=1 \
     trainer.args.eval_strategy=no \
     trainer.args.report_to=none \
@@ -89,7 +89,7 @@ echo "[$(date)] Exp 3: Forget seq interp Gemma Cyber..."
 python3 scripts/pca_forget_seq_interp.py \
     --config-name=unlearn.yaml \
     experiment=unlearn/wmdp_low_mi/default \
-    model=Gemma-3-1B trainer=RepSelect \
+    model=Gemma-3-1B trainer=RepCollapse \
     wmdp_domain=cyber \
     trainer.args.num_train_epochs=1 \
     trainer.args.eval_strategy=no \

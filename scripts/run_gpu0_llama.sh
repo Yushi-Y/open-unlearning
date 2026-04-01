@@ -18,7 +18,7 @@ echo "[$(date)] Exp 1: Token interp Llama Bio..."
 python3 scripts/pca_token_interp.py \
     --config-name=unlearn.yaml \
     experiment=unlearn/wmdp_low_mi/default \
-    model=Llama-3.2-3B trainer=RepSelect \
+    model=Llama-3.2-3B trainer=RepCollapse \
     trainer.args.num_train_epochs=1 \
     trainer.args.eval_strategy=no \
     trainer.args.report_to=none \
@@ -29,7 +29,7 @@ echo "[$(date)] Exp 1: Token interp Llama Cyber..."
 python3 scripts/pca_token_interp.py \
     --config-name=unlearn.yaml \
     experiment=unlearn/wmdp_low_mi/default \
-    model=Llama-3.2-3B trainer=RepSelect \
+    model=Llama-3.2-3B trainer=RepCollapse \
     wmdp_domain=cyber \
     trainer.args.num_train_epochs=1 \
     trainer.args.eval_strategy=no \
@@ -42,7 +42,7 @@ echo "[$(date)] Exp 2: Sequence interp Llama Bio..."
 python3 scripts/pca_sequence_interp.py \
     --config-name=unlearn.yaml \
     experiment=unlearn/wmdp_low_mi/default \
-    model=Llama-3.2-3B trainer=RepSelect \
+    model=Llama-3.2-3B trainer=RepCollapse \
     trainer.args.num_train_epochs=1 \
     trainer.args.eval_strategy=no \
     trainer.args.report_to=none \
@@ -53,7 +53,7 @@ echo "[$(date)] Exp 2: Sequence interp Llama Cyber..."
 python3 scripts/pca_sequence_interp.py \
     --config-name=unlearn.yaml \
     experiment=unlearn/wmdp_low_mi/default \
-    model=Llama-3.2-3B trainer=RepSelect \
+    model=Llama-3.2-3B trainer=RepCollapse \
     wmdp_domain=cyber \
     trainer.args.num_train_epochs=1 \
     trainer.args.eval_strategy=no \
@@ -66,7 +66,7 @@ echo "[$(date)] Exp 3: Forget seq interp Llama Bio..."
 python3 scripts/pca_forget_seq_interp.py \
     --config-name=unlearn.yaml \
     experiment=unlearn/wmdp_low_mi/default \
-    model=Llama-3.2-3B trainer=RepSelect \
+    model=Llama-3.2-3B trainer=RepCollapse \
     trainer.args.num_train_epochs=1 \
     trainer.args.eval_strategy=no \
     trainer.args.report_to=none \
@@ -77,7 +77,7 @@ echo "[$(date)] Exp 3: Forget seq interp Llama Cyber..."
 python3 scripts/pca_forget_seq_interp.py \
     --config-name=unlearn.yaml \
     experiment=unlearn/wmdp_low_mi/default \
-    model=Llama-3.2-3B trainer=RepSelect \
+    model=Llama-3.2-3B trainer=RepCollapse \
     wmdp_domain=cyber \
     trainer.args.num_train_epochs=1 \
     trainer.args.eval_strategy=no \
@@ -90,7 +90,7 @@ echo "[$(date)] Exp 4+6: Attack subspace Llama Bio..."
 python3 scripts/attack_subspace.py \
     --config-name=unlearn.yaml \
     experiment=unlearn/wmdp_low_mi/default \
-    model=Llama-3.2-3B trainer=RepSelect \
+    model=Llama-3.2-3B trainer=RepCollapse \
     trainer.args.num_train_epochs=1 \
     trainer.args.eval_strategy=no \
     trainer.args.report_to=none \
@@ -100,7 +100,7 @@ echo "[$(date)] Exp 4+6: Attack subspace Llama Cyber..."
 python3 scripts/attack_subspace.py \
     --config-name=unlearn.yaml \
     experiment=unlearn/wmdp_low_mi/default \
-    model=Llama-3.2-3B trainer=RepSelect \
+    model=Llama-3.2-3B trainer=RepCollapse \
     wmdp_domain=cyber \
     trainer.args.num_train_epochs=1 \
     trainer.args.eval_strategy=no \
@@ -113,7 +113,7 @@ python3 scripts/baseline_weight_projection.py \
     --config-name=unlearn.yaml \
     experiment=unlearn/wmdp_low_mi/default \
     model=Llama-3.2-3B \
-    trainer=RepSelect \
+    trainer=RepCollapse \
     trainer.args.eval_strategy=no \
     trainer.args.report_to=none \
     task_name=BASELINE_CMP_LLAMA_BIO 2>&1 | tee saves/pca_interp/log_baseline_llama_bio.txt

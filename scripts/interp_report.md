@@ -108,7 +108,7 @@ Plots: `saves/plots/baseline_cmp_BASELINE_CMP_LLAMA_BIO.pdf`, `saves/plots/basel
 
 ## Exp 5 (Updated): 5 Baselines — Llama-3.2-3B, WMDP-Bio
 
-| Layer | GradDiff | NPO | SimNPO | RMU | **RepSelect** |
+| Layer | GradDiff | NPO | SimNPO | RMU | **RepCollapse** |
 |-------|:---:|:---:|:---:|:---:|:---:|
 | L0 top-10 | 16.5% | 12.3% | 11.0% | 17.2% | **2.0%** |
 | L9 top-10 | 9.6% | 19.7% | 19.1% | 0.0%* | **2.3%** |
@@ -166,7 +166,7 @@ This directly supports **Proposition 1**: collapsing top forget PCs has limited 
 |--------|:---:|:---:|:---:|
 | **GradDiff** | **+18.49** | +3.65 | **6410/6463 (99.2%)** |
 | NPO | -0.15 | -0.11 | 2389/6463 (37.0%) |
-| **RepSelect** | **+0.001** | +0.0001 | 3278/6463 (50.7%) |
+| **RepCollapse** | **+0.001** | +0.0001 | 3278/6463 (50.7%) |
 
 ### Qwen3-8B-Base, WMDP-Bio
 
@@ -174,7 +174,7 @@ This directly supports **Proposition 1**: collapsing top forget PCs has limited 
 |--------|:---:|:---:|:---:|
 | **GradDiff** | **+511.72** | +269.61 | **6220/6220 (100%)** |
 | NPO | -0.36 | -0.26 | 1649/6220 (26.5%) |
-| **RepSelect** | **+0.0001** | -0.00 | 3091/6220 (49.7%) |
+| **RepCollapse** | **+0.0001** | -0.00 | 3091/6220 (49.7%) |
 
 **Takeaways:**
 1. GradDiff increases loss on **99-100%** of retain tokens (catastrophic disruption)

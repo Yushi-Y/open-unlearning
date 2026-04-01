@@ -1,12 +1,12 @@
 defaults:
   - finetune
 
-handler: RepSelect
+handler: RepCollapse
 args:
   optim: sgd  # adam underperforms
   learning_rate: 0.2
   lr_scheduler_type: constant
-  gradient_accumulation_steps: 1  # must be one, because RepSelect modifies gradients in-place
+  gradient_accumulation_steps: 1  # must be one, because RepCollapse modifies gradients in-place
 
 method_args:
   cfg:

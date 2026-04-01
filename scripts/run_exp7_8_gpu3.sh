@@ -17,7 +17,7 @@ echo "[$(date)] Exp 7: Cross PCA similarity Qwen Bio..."
 python3 scripts/pca_cross_similarity.py \
     --config-name=unlearn.yaml \
     experiment=unlearn/wmdp_low_mi/default \
-    model=Qwen3-8B-Base trainer=RepSelect \
+    model=Qwen3-8B-Base trainer=RepCollapse \
     trainer.args.num_train_epochs=1 \
     trainer.args.eval_strategy=no \
     trainer.args.report_to=none \
@@ -29,7 +29,7 @@ echo "[$(date)] Exp 7: Cross PCA similarity Qwen Cyber..."
 python3 scripts/pca_cross_similarity.py \
     --config-name=unlearn.yaml \
     experiment=unlearn/wmdp_low_mi/default \
-    model=Qwen3-8B-Base trainer=RepSelect \
+    model=Qwen3-8B-Base trainer=RepCollapse \
     wmdp_domain=cyber \
     trainer.args.num_train_epochs=1 \
     trainer.args.eval_strategy=no \
@@ -43,7 +43,7 @@ echo "[$(date)] Exp 8: Per-token loss Qwen Bio..."
 python3 scripts/per_token_loss_comparison.py \
     --config-name=unlearn.yaml \
     experiment=unlearn/wmdp_low_mi/default \
-    model=Qwen3-8B-Base trainer=RepSelect \
+    model=Qwen3-8B-Base trainer=RepCollapse \
     trainer.args.eval_strategy=no \
     trainer.args.report_to=none \
     trainer.args.per_device_train_batch_size=4 \
