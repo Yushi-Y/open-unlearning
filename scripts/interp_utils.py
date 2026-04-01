@@ -174,3 +174,97 @@ def save_json(data, path):
     with open(path, "w") as f:
         json.dump(data, f, indent=2)
     print(f"Saved: {path}")
+
+
+# --- Activation collection ---
+
+def collect_activations(model, dataset, collator, target_module):
+    """Collect ALL token activations at target_module input. Forward only, no grad."""
+    from torch.utils.data import DataLoader
+    loader = DataLoader(dataset, batch_size=8, collate_fn=collator, shuffle=False)
+    captured = []
+
+    def hook(module, args, output):
+        captured.append(args[0].detach())
+
+    handle = target_module.register_forward_hook(hook)
+    all_acts = []
+
+    model.eval()
+    with pt.no_grad():
+        for batch in loader:
+            captured.clear()
+            inputs = {
+                "input_ids": batch["input_ids"].to(model.device),
+                "attention_mask": batch["attention_mask"].to(model.device),
+            }
+            if "labels" in batch:
+                inputs["labels"] = batch["labels"].to(model.device)
+            _ = model(**inputs)
+            if not captured:
+                continue
+            acts = captured[0].float()
+            mask = batch["attention_mask"].bool().to(acts.device)
+            for seq_idx in range(acts.shape[0]):
+                valid = acts[seq_idx, mask[seq_idx]]
+                all_acts.append(valid.cpu())
+
+    handle.remove()
+    return pt.cat(all_acts, dim=0)
+
+
+def disable_grad_collapsers(model):
+    """Replace grad collapsers with no-ops (for PCA-only collection)."""
+    class _NoOp:
+        def add_vecs(self, vecs): pass
+        def collapse(self, vecs): return vecs
+        def process_saved_vecs(self): pass
+    for module in model.modules():
+        if hasattr(module, "grad_collapser"):
+            module.grad_collapser = _NoOp()
+
+
+def load_wikitext(tokenizer, max_samples=2000):
+    """Load and tokenize wikitext for cross-distribution analysis."""
+    from datasets import load_dataset
+    raw = load_dataset("filypo/wikitext_16k", split="train")
+    raw = raw.select(range(min(max_samples, len(raw))))
+    def tokenize_fn(examples):
+        return tokenizer(examples["text"], truncation=True, max_length=512, padding="max_length")
+    ds = raw.map(tokenize_fn, batched=True, remove_columns=raw.column_names)
+    ds.set_format("torch", columns=["input_ids", "attention_mask"])
+    return ds
+
+
+# --- Generalised eigenvalue (DISCO) ---
+
+def solve_generalised_eigenvalue(Sigma_f, Sigma_r, reg_eps=1e-4):
+    """Solve Sigma_f v = lambda Sigma_r v via Cholesky whitening. Returns descending."""
+    D = Sigma_f.shape[0]
+    device = Sigma_f.device
+    Sigma_r_reg = Sigma_r + reg_eps * pt.eye(D, device=device)
+    L = pt.linalg.cholesky(Sigma_r_reg)
+    L_inv = pt.linalg.inv(L)
+    M = L_inv @ Sigma_f @ L_inv.T
+    eigenvalues, U = pt.linalg.eigh(M)
+    eigenvectors = pt.linalg.solve_triangular(L.T, U, upper=True)
+    eigenvalues = eigenvalues.flip(0)
+    eigenvectors = eigenvectors.flip(1)
+    eigenvectors = eigenvectors / eigenvectors.norm(dim=0, keepdim=True)
+    return eigenvalues, eigenvectors
+
+
+def compute_tiered_variance(acts, directions, mean, tiers):
+    """Compute variance fraction explained by direction tiers on a dataset."""
+    centered = acts - mean
+    projections = centered @ directions
+    per_dir_var = projections.var(dim=0)
+    total_var = centered.var(dim=0).sum()
+    results = {}
+    for name, (start, end) in tiers.items():
+        end = min(end, per_dir_var.shape[0])
+        if start >= per_dir_var.shape[0]:
+            results[name] = 0.0
+            continue
+        results[name] = (per_dir_var[start:end].sum() / total_var).item()
+    return results

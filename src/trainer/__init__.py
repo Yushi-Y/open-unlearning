@@ -19,6 +19,7 @@ from trainer.unlearn.repcollapse.repcollapse_trainer import RepCollapse
 from trainer.unlearn.repcollapse.repcollapse_cohen_trainer import RepCollapseCohen
 from trainer.unlearn.repcollapse.repcollapse_moe_trainer import RepCollapseMOE
 from trainer.unlearn.repcollapse.disrcollapse_trainer import DisrCollapse
+from trainer.unlearn.repcollapse.disco_trainer import DISCO
 import logging
 
 logger = logging.getLogger(__name__)
@@ -105,3 +106,4 @@ _register_trainer(RepCollapse)
 _register_trainer(RepCollapseCohen)
 _register_trainer(RepCollapseMOE)
 _register_trainer(DisrCollapse)
+_register_trainer(DISCO)
