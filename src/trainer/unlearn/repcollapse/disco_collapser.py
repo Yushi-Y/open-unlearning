@@ -55,16 +55,21 @@ class DiscoCollapser:
         Sigma_r = (Sigma_r + Sigma_r.T) / 2
 
         # Generalised eigenvalue: Sigma_f v = λ Sigma_r v
-        k_r = min(self.n_pcs_select * 2, D)
-        _, S_r, V_r = pt.svd_lowrank(Sigma_r, q=k_r)
-        inv_sqrt_S = 1.0 / S_r.clamp(min=self.reg_eps).sqrt()
-        W = V_r * inv_sqrt_S.unsqueeze(0)
+        # Use diagonal Sigma_r for full-rank whitening (all D dimensions).
+        # Low-rank SVD of Sigma_r only captures k_r/D of variance,
+        # making eigenvalues unreliable in the remaining subspace.
+        diag_r = Sigma_r.diagonal().clamp(min=self.reg_eps)
+        inv_sqrt_diag = 1.0 / diag_r.sqrt()  # (D,)
 
-        M_reduced = W.T @ Sigma_f @ W
-        M_reduced = (M_reduced + M_reduced.T) / 2
-        _, eigenvalues, U_reduced = pt.svd_lowrank(M_reduced, q=self.n_pcs_select)
+        # Whitened forget covariance: D^{-1/2} Sigma_f D^{-1/2}
+        # Eigenvectors of this = directions maximising forget/retain variance ratio
+        whitened = Sigma_f * inv_sqrt_diag.unsqueeze(0) * inv_sqrt_diag.unsqueeze(1)
+        whitened = (whitened + whitened.T) / 2
 
-        eigenvectors = W @ U_reduced
+        _, eigenvalues, V = pt.svd_lowrank(whitened, q=self.n_pcs_select)
+
+        # Transform back to original space: v = D^{-1/2} u
+        eigenvectors = V * inv_sqrt_diag.unsqueeze(1)
         eigenvectors = eigenvectors / eigenvectors.norm(dim=0, keepdim=True)
 
         # Per-direction weight: suppress shared (low λ), keep selective (high λ)
@@ -81,22 +86,22 @@ class DiscoCollapser:
         self._reset_vecs()
 
     def collapse(self, vecs):
-        """
-        1. Project centered data onto DISCO directions
-        2. Reweight: suppress shared, keep selective
-        3. Reconstruct a "cleaned direction" per token
-        4. Project centered data onto that cleaned direction (1D, bounded magnitude)
+        """Mahalanobis-style: subtract shared components, keep selective + residual.
+
+        Starts from the full centered vector and removes identified shared
+        directions.  Preserves all non-DISCO dimensions for stronger signal.
         """
         centered = vecs - self.mean
 
-        # Project onto DISCO directions and reweight
-        projected = centered @ self.eig_vec              # (T, m)
-        weighted = projected * self.weights               # suppress shared
-        # Cleaned direction = reconstruction from weighted components
-        cleaned_dir = weighted @ self.eig_vec.T           # (T, D)
+        # Project onto DISCO directions
+        projected = centered @ self.eig_vec  # (T, m)
 
-        # Double projection: project centered onto cleaned direction (like RepCollapse)
-        # This bounds the output magnitude
-        cleaned_norm = cleaned_dir / (cleaned_dir.norm(dim=1, keepdim=True) + 1e-8)
-        proj_strength = (cleaned_norm * centered).sum(dim=1, keepdim=True)
-        return (proj_strength * cleaned_norm).to(vecs.dtype)
+        # Remove shared components: (1 - weight) fraction of each direction
+        # shared (λ≤1, w=0) → fully removed; selective (high λ, w≈1) → kept
+        removal = projected * (1.0 - self.weights)  # (T, m)
+        mahal_dirs = centered - removal @ self.eig_vec.T  # (T, D)
+
+        # Double projection: bounded magnitude (like RepCollapse)
+        mahal_norm = mahal_dirs / (mahal_dirs.norm(dim=1, keepdim=True) + 1e-8)
+        proj_strength = (mahal_norm * centered).sum(dim=1, keepdim=True)
+        return (proj_strength * mahal_norm).to(vecs.dtype)
