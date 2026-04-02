@@ -21,6 +21,7 @@ from trainer.unlearn.repcollapse.repcollapse_moe_trainer import RepCollapseMOE
 from trainer.unlearn.repcollapse.disrcollapse_trainer import DisrCollapse
 from trainer.unlearn.repcollapse.disco_trainer import DISCO
 from trainer.unlearn.repcollapse.retain_aware_trainer import RetainAwareCollapse
+from trainer.unlearn.repcollapse.gradorth_trainer import GradOrth
 import logging
 
 logger = logging.getLogger(__name__)
@@ -109,3 +110,4 @@ _register_trainer(RepCollapseMOE)
 _register_trainer(DisrCollapse)
 _register_trainer(DISCO)
 _register_trainer(RetainAwareCollapse)
+_register_trainer(GradOrth)
