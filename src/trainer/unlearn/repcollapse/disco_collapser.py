@@ -86,22 +86,16 @@ class DiscoCollapser:
         self._reset_vecs()
 
     def collapse(self, vecs):
-        """Mahalanobis-style: subtract shared components, keep selective + residual.
+        """Selective reconstruction: project onto DISCO dirs, reweight, reconstruct.
 
-        Starts from the full centered vector and removes identified shared
-        directions.  Preserves all non-DISCO dimensions for stronger signal.
+        Only reconstructs from selective (high-λ) directions. No double
+        projection — preserves multi-directional signal per token.
         """
         centered = vecs - self.mean
 
-        # Project onto DISCO directions
+        # Project onto DISCO directions, reweight by selectivity
         projected = centered @ self.eig_vec  # (T, m)
+        weighted = projected * self.weights   # suppress shared, keep selective
 
-        # Remove shared components: (1 - weight) fraction of each direction
-        # shared (λ≤1, w=0) → fully removed; selective (high λ, w≈1) → kept
-        removal = projected * (1.0 - self.weights)  # (T, m)
-        mahal_dirs = centered - removal @ self.eig_vec.T  # (T, D)
-
-        # Double projection: bounded magnitude (like RepCollapse)
-        mahal_norm = mahal_dirs / (mahal_dirs.norm(dim=1, keepdim=True) + 1e-8)
-        proj_strength = (mahal_norm * centered).sum(dim=1, keepdim=True)
-        return (proj_strength * mahal_norm).to(vecs.dtype)
+        # Reconstruct from selective directions only
+        return (weighted @ self.eig_vec.T).to(vecs.dtype)
