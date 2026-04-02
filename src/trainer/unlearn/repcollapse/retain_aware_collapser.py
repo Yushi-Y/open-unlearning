@@ -30,14 +30,18 @@ class RetainAwareCovCollapser(CovCollapser):
 
     def process_saved_vecs(self):
         """Compute PCA directions, then reweight by forget/retain ratio."""
-        # Standard PCA (same as CovCollapser)
+        # Save retain cov before super() resets it
+        has_retain = self._has_retain_data
+        if has_retain:
+            Sigma_r = self.retain_cov.cov().to(pt.float32)
+
+        # Standard PCA (same as CovCollapser) — this calls _reset_vecs()
         super().process_saved_vecs()
 
-        if not self._has_retain_data:
+        if not has_retain:
             return  # fall back to standard PCA ranking
 
         # Compute retain variance along each PCA direction
-        Sigma_r = self.retain_cov.cov().to(pt.float32)
         V = self.eig_vec  # (D, k) — PCA directions from forget data
 
         # retain_var_i = V_i^T @ Sigma_r @ V_i for each direction i
