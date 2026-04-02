@@ -41,14 +41,29 @@ class RetainAwareCovCollapser(CovCollapser):
         V = self.eig_vec  # (D, k) — PCA directions from forget data
 
         # retain_var_i = V_i^T @ Sigma_r @ V_i for each direction i
-        # Efficient: (V.T @ Sigma_r @ V).diagonal()
         retain_var = (V.T @ Sigma_r @ V).diagonal().clamp(min=self.reg_eps)
+        forget_var = self.eig_val * self.eig_val.min()  # unnormalize (approx)
 
-        # Forget variance per direction = original eigenvalues (before normalization)
-        # eig_val was normalized by min, so recover: forget_var = eig_val * min_val
-        # But we only need the RATIO, and eig_val is monotonic with forget_var
-        # So: ratio = eig_val * const / retain_var ∝ eig_val / retain_var
+        # Log the structure for analysis
+        import logging
+        logger = logging.getLogger(__name__)
         ratio = self.eig_val / retain_var
+        # Check ranking: does ratio ordering match eig_val ordering?
+        pca_rank = self.eig_val.argsort(descending=True)
+        ratio_rank = ratio.argsort(descending=True)
+        rank_match = (pca_rank == ratio_rank).float().mean().item()
+        # Spearman correlation of rankings
+        n = len(self.eig_val)
+        d = (pca_rank.float() - ratio_rank.float())
+        spearman = 1 - 6 * (d ** 2).sum().item() / (n * (n ** 2 - 1))
+
+        logger.info(
+            f"RetainAware (dim={V.shape[0]}): "
+            f"rank_match={rank_match:.3f}, spearman={spearman:.4f}, "
+            f"retain_var top5={[f'{v:.2f}' for v in retain_var[:5].tolist()]}, "
+            f"retain_var bot5={[f'{v:.2f}' for v in retain_var[-5:].tolist()]}, "
+            f"retain_var std/mean={retain_var.std().item()/retain_var.mean().item():.3f}"
+        )
 
         # Re-normalize so min = 1 (same convention as CovCollapser)
         self.eig_val = ratio / ratio.min()
