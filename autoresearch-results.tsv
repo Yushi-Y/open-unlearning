@@ -1,0 +1,10 @@
+iter	change	metric	status	notes
+0	baseline (original DISCO lr=0.2)	0.115	baseline	broken at epoch 2, barely unlearns
+1	mahalanobis subtraction (low-rank Sigma_r)	0.114	discard	same poor forgetting, more disruption
+2	diagonal Sigma_r + mahalanobis	0.114	discard	eigenvalues 10x better but same poor forgetting
+3	DISCO grad collapse + diagonal Sigma_r	0.096	keep	gate/up grads zeroed (0 active), only down_proj trained
+4	skip zero-active grad collapse	0.113	discard	raw gate/up grads too disruptive
+5	selective reconstruction, no double proj	0.111	discard	weaker signal
+6	act collapse all + selective grad	0.113	discard	same as iter4
+7	+ KL token masking (lr=0.2, mom=0.8)	0.066	keep	KL masking controls disruption
+8	+ LoRA adversary (lr=0.2, mom=0.97)	0.037	BEST	within 20% of RepCollapse (0.031)
