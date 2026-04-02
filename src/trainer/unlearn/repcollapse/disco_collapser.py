@@ -46,13 +46,17 @@ class DiscoCollapser:
         if not self._has_forget_data or not self._has_retain_data:
             return
 
-        self.mean = self.forget_cov.mean.to(pt.float32)
+        self.mean = self.forget_cov.mean().to(pt.float32)
         Sigma_f = self.forget_cov.cov().to(pt.float32)
         Sigma_r = self.retain_cov.cov().to(pt.float32)
         D = Sigma_f.shape[0]
 
         Sigma_f = (Sigma_f + Sigma_f.T) / 2
         Sigma_r = (Sigma_r + Sigma_r.T) / 2
+
+        # Store diagonals for diagonal_collapse fallback
+        self.forget_diag = Sigma_f.diagonal().clamp(min=self.reg_eps)
+        self.retain_diag = Sigma_r.diagonal().clamp(min=self.reg_eps)
 
         # Generalised eigenvalue: Sigma_f v = λ Sigma_r v
         # Use diagonal Sigma_r for full-rank whitening (all D dimensions).
@@ -73,12 +77,14 @@ class DiscoCollapser:
         eigenvectors = eigenvectors / eigenvectors.norm(dim=0, keepdim=True)
 
         # Per-direction weight: suppress shared (low λ), keep selective (high λ)
-        # w(λ) = max(0, 1 - 1/λ): λ≤1 → 0, λ=2 → 0.5, λ=93 → 0.99
-        self.weights = (1.0 - 1.0 / eigenvalues.clamp(min=1e-6)).clamp(min=0)
+        # Adaptive threshold using median ensures ~half dirs always active
+        ref = eigenvalues.median().clamp(min=1e-6)
+        self.weights = (1.0 - ref / eigenvalues.clamp(min=1e-6)).clamp(min=0)
         self.eig_vec = eigenvectors  # (D, m)
         self.eigenvalues = eigenvalues
 
         n_active = (self.weights > 0.01).sum().item()
+        self.n_active = n_active
         logger.info(
             f"DISCO: {n_active}/{eigenvectors.shape[1]} active dirs (dim={D}), "
             f"top-5 λ: {[f'{v:.1f}' for v in eigenvalues[:5].tolist()]}"
@@ -105,3 +111,25 @@ class DiscoCollapser:
         mahal_norm = mahal_dirs / (mahal_dirs.norm(dim=1, keepdim=True) + 1e-8)
         proj_strength = (mahal_norm * centered).sum(dim=1, keepdim=True)
         return (proj_strength * mahal_norm).to(vecs.dtype)
+
+    def token_selectivity(self, vecs):
+        """Per-token selectivity score: fraction of activation energy in selective dirs."""
+        centered = (vecs - self.mean).to(pt.float32)
+        projected = centered @ self.eig_vec  # (T, m)
+        selective_energy = (projected ** 2 * self.weights).sum(dim=1)  # (T,)
+        total_energy = (centered ** 2).sum(dim=1).clamp(min=1e-8)  # (T,)
+        return (selective_energy / total_energy).to(vecs.dtype)  # (T,) in [0, 1]
+
+    def diagonal_collapse(self, vecs):
+        """Diagonal DISCO fallback: per-dimension forget/retain variance ratio.
+
+        Used when full DISCO finds 0 active directions (e.g. gradient space
+        where retain dominates). Still uses forget/retain ratio (DISCO math),
+        just diagonal instead of full covariance.
+        """
+        # Per-dimension ratio from the stored covariance diagonals
+        diag_f = self.forget_diag  # stored during process_saved_vecs
+        diag_r = self.retain_diag
+        ratio = diag_f / diag_r.clamp(min=self.reg_eps)
+        dim_weights = (1.0 - 1.0 / ratio.clamp(min=1e-6)).clamp(min=0)
+        return (vecs * dim_weights.to(vecs.dtype)).to(vecs.dtype)

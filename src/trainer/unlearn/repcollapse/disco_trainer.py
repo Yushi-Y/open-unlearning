@@ -161,6 +161,11 @@ class DISCO(UnlearnTrainer):
                     module.act_collapser.process_saved_vecs()
                 if hasattr(module, "grad_collapser"):
                     module.grad_collapser.process_saved_vecs()
+                    # Joint Kronecker: rescale grad weights by act selectivity
+                    if hasattr(module, "act_collapser") and hasattr(module.act_collapser, "eigenvalues"):
+                        act_median = module.act_collapser.eigenvalues.median().clamp(min=1e-6)
+                        joint_lambda = module.grad_collapser.eigenvalues * act_median
+                        module.grad_collapser.weights = (1.0 - 1.0 / joint_lambda.clamp(min=1e-6)).clamp(min=0)
 
         normalize_grads(self.base_trainable_params)
         return forget_loss.detach()
@@ -199,8 +204,12 @@ class DISCO(UnlearnTrainer):
         if self.batch_idx < self.recalc_every:
             return
 
-        # Collapse BOTH acts and grads via DISCO directions
-        acts = module.act_collapser.collapse(acts)
+        # DISCO token weighting: weight gradient by per-token selectivity
+        selectivity = module.act_collapser.token_selectivity(acts)  # (T,)
+        # Weight acts by selectivity (equivalent to weighting the loss per token)
+        acts = acts * selectivity.unsqueeze(1)
+
+        # Still collapse grads where DISCO found selective directions
         grads = module.grad_collapser.collapse(grads)
 
         # KL masking: filter disruptive tokens
