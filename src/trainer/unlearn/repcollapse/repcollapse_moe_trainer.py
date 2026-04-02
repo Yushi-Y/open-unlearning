@@ -177,27 +177,15 @@ class RepCollapseMOE(UnlearnTrainer):
         tokens_per_expert = pt.bincount(expert_ids, minlength=num_experts)
         offsets = pt.cumsum(tokens_per_expert, dim=0, dtype=pt.int32)
 
-        ends = offsets.tolist()
-        starts = [0] + ends[:-1]
-
-        # Accumulate collapser stats (per-expert, variable token counts)
-        for expert_idx in range(num_experts):
-            start, end = starts[expert_idx], ends[expert_idx]
-            if start == end:
-                continue
-            if hasattr(module, "act_collapser"):
-                module.act_collapser.add_vecs(expert_idx, acts_sorted[start:end])
-            if hasattr(module, "grad_collapser"):
-                module.grad_collapser.add_vecs(expert_idx, grads_sorted[start:end])
+        module.act_collapser.add_vecs(acts_sorted, offsets, num_experts)
+        module.grad_collapser.add_vecs(grads_sorted, offsets, num_experts)
 
         if self.batch_idx < self.recalc_every:
             return
 
         # Batched collapse via _grouped_mm (replaces per-expert loop)
-        if hasattr(module, "act_collapser"):
-            acts_sorted = module.act_collapser.collapse(acts_sorted, offsets)
-        if hasattr(module, "grad_collapser"):
-            grads_sorted = module.grad_collapser.collapse(grads_sorted, offsets)
+        acts_sorted = module.act_collapser.collapse(acts_sorted, offsets)
+        grads_sorted = module.grad_collapser.collapse(grads_sorted, offsets)
 
         # KL-masking (zero out instead of selecting, to preserve offsets)
         if "retain_momentum" in self.cfg:
@@ -206,6 +194,8 @@ class RepCollapseMOE(UnlearnTrainer):
             if is_transposed:
                 ref_grad = ref_grad.transpose(-2, -1)  # (E, out_dim, in_dim) — view, no kernel
 
+            ends = offsets.tolist()
+            starts = [0] + ends[:-1]
             token_disr = pt.zeros(acts_sorted.shape[0], device=acts_sorted.device)
             for expert_idx in range(num_experts):
                 start, end = starts[expert_idx], ends[expert_idx]
