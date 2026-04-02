@@ -76,10 +76,10 @@ class DiscoCollapser:
         eigenvectors = V * inv_sqrt_diag.unsqueeze(1)
         eigenvectors = eigenvectors / eigenvectors.norm(dim=0, keepdim=True)
 
-        # Per-direction weight: suppress shared (low λ), keep selective (high λ)
-        # Adaptive threshold using median ensures ~half dirs always active
-        ref = eigenvalues.median().clamp(min=1e-6)
-        self.weights = (1.0 - ref / eigenvalues.clamp(min=1e-6)).clamp(min=0)
+        # Per-direction weight: soft Mahalanobis scaling (like RepCollapse)
+        # Normalize by min so all directions contribute; relative ranking preserved
+        # w = 1 - λ_min/λ: min dir → 0, max dir → ~1, no hard cutoff
+        self.weights = 1.0 - eigenvalues.min() / eigenvalues.clamp(min=1e-6)
         self.eig_vec = eigenvectors  # (D, m)
         self.eigenvalues = eigenvalues
 
