@@ -188,8 +188,8 @@ class DISCO(UnlearnTrainer):
         W_grad = pt.einsum("ti,tj->ij", grads, acts)  # (D_out, D_in)
 
         # Post-hoc DISCO projection: constrain ΔW to selective input dirs
-        V = module.disco_collapser.eig_vec    # (D_in, m)
-        w = module.disco_collapser.weights     # (m,)
+        V = module.disco_collapser.eig_vec.to(W_grad.dtype)  # (D_in, m)
+        w = module.disco_collapser.weights.to(W_grad.dtype)  # (m,)
         G_proj = W_grad @ V                    # (D_out, m)
         G_weighted = G_proj * w                # reweight by selectivity
         module.weight.grad = G_weighted @ V.T  # (D_out, D_in)
