@@ -77,9 +77,8 @@ class DiscoCollapser:
         eigenvectors = eigenvectors / eigenvectors.norm(dim=0, keepdim=True)
 
         # Per-direction weight: suppress shared (low λ), keep selective (high λ)
-        # Adaptive threshold using median ensures ~half dirs always active
-        ref = eigenvalues.median().clamp(min=1e-6)
-        self.weights = (1.0 - ref / eigenvalues.clamp(min=1e-6)).clamp(min=0)
+        # w(λ) = max(0, 1 - 1/λ): λ≤1 → 0, λ=2 → 0.5, λ=93 → 0.99
+        self.weights = (1.0 - 1.0 / eigenvalues.clamp(min=1e-6)).clamp(min=0)
         self.eig_vec = eigenvectors  # (D, m)
         self.eigenvalues = eigenvalues
 
