@@ -1,0 +1,7 @@
+iter	change	metric	status	notes
+0	RepCollapse baseline	0.032	baseline	10/10 epochs
+1	DISCO+GradOrth (lr=0.2)	0.067	discard	broke E3, stronger per-epoch but less stable
+2a	EigenSurgery alpha=0.1	0.114	discard	surgery alone insufficient
+2b	EigenSurgery alpha=0.3	pending	pending	running
+2c	EigenSurgery alpha=0.5	0.115	discard	broke
+2d	EigenSurgery alpha=0.2+lr=0.05	0.115	discard	broke
