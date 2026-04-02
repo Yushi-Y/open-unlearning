@@ -10,7 +10,7 @@ from data.utils import batched, prep_batch
 from evals.kl_eval import KLComputor
 from trainer.unlearn.base import UnlearnTrainer
 from trainer.unlearn.repcollapse.disco_collapser import DiscoCollapser
-from trainer.unlearn.repcollapse.utils import get_banned_tokens
+from trainer.unlearn.repcollapse.utils import get_banned_tokens, ManualLoRA
 from trainer.utils import normalize_grads
 
 logging.basicConfig(level=logging.INFO)
@@ -36,6 +36,7 @@ class DISCO(UnlearnTrainer):
 
         self.model.requires_grad_(False)
         self.base_trainable_params = []
+        self.lora_params = []
         n_pcs = cfg.n_pcs_select
         eps = cfg.get("reg_eps", 1e-4)
 
@@ -56,6 +57,16 @@ class DISCO(UnlearnTrainer):
                 else:
                     module.act_collapser = shared_act_collapser
                     module.grad_collapser = shared_grad_collapser
+
+                # LoRA adversary
+                if "lora_lr" in cfg:
+                    module.lora_module = ManualLoRA(
+                        module.weight.shape[1],
+                        module.weight.shape[0],
+                        cfg.lora_rank,
+                    ).to(self.model.device, dtype=self.model.dtype)
+                    self.lora_params.extend(module.lora_module.parameters())
+                    module.register_forward_hook(self.lora_forward_hook)
 
         # KL masking: pre-cache retain batches
         self.kl_computor = None
@@ -136,6 +147,13 @@ class DISCO(UnlearnTrainer):
             p.requires_grad_(True)
         self.use_hooks = False
 
+        # LoRA adversarial update (gradient ascent — adversary tries to relearn)
+        if "lora_lr" in self.cfg:
+            normalize_grads(self.lora_params)
+            for p in self.lora_params:
+                p.data += self.cfg.lora_lr * self.args.learning_rate * p.grad
+                p.grad = None
+
         self.batch_idx += 1
         if self.batch_idx % self.recalc_every == 0:
             for module in model.modules():
@@ -195,3 +213,7 @@ class DISCO(UnlearnTrainer):
             grads = grads[kl_mask]
 
         module.weight.grad = pt.einsum("ti,tj->ij", grads, acts)
+
+    def lora_forward_hook(self, module, args, output):
+        if self.use_hooks:
+            return output + module.lora_module(args[0])

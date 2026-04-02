@@ -13,3 +13,5 @@ method_args:
     n_pcs_select: 200
     reg_eps: 1e-4
     retain_momentum: 0.97
+    lora_lr: 0.1
+    lora_rank: 32
