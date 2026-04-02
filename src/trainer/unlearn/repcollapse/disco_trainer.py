@@ -1,10 +1,13 @@
 # python src/train.py --config-name=unlearn.yaml experiment=unlearn/wmdp_low_mi/default trainer=DISCO task_name=test_disco
 import logging
 import math
+import random
 
 import torch as pt
+from bitsandbytes.functional import dequantize_blockwise, quantize_blockwise
 
 from data.utils import batched, prep_batch
+from evals.kl_eval import KLComputor
 from trainer.unlearn.base import UnlearnTrainer
 from trainer.unlearn.repcollapse.disco_collapser import DiscoCollapser
 from trainer.unlearn.repcollapse.utils import get_banned_tokens
@@ -14,11 +17,8 @@ logging.basicConfig(level=logging.INFO)
 
 
 class DISCO(UnlearnTrainer):
-    """Discriminative Collapse with DISCO directions on both acts and grads.
-
-    Uses generalised eigenvalue (forget/retain variance ratio) to identify
-    selective directions in BOTH activation and gradient space.  Collapses
-    both sides of the weight gradient for focused unlearning.
+    """Discriminative Collapse with DISCO directions on both acts and grads,
+    plus KL-based token masking to control disruption.
     """
 
     def __init__(self, cfg, *args, **kwargs):
@@ -57,8 +57,22 @@ class DISCO(UnlearnTrainer):
                     module.act_collapser = shared_act_collapser
                     module.grad_collapser = shared_grad_collapser
 
+        # KL masking: pre-cache retain batches
+        self.kl_computor = None
+        if "retain_momentum" in self.cfg:
+            self.retain_batches = [
+                self.data_collator(r)
+                for r in batched(
+                    self.train_dataset.retain, self.args.per_device_train_batch_size
+                )
+            ]
+
     def training_step(self, model, inputs, num_items_in_batch=None):
         model.train()
+
+        # Lazy init KLComputor
+        if self.kl_computor is None and "retain_momentum" in self.cfg:
+            self.kl_computor = KLComputor(self.model, self.retain_batches)
 
         # Retain data collection (epoch 0 only)
         if self.batch_idx < self.recalc_every:
@@ -85,6 +99,22 @@ class DISCO(UnlearnTrainer):
             for p in self.base_trainable_params:
                 p.requires_grad_(True)
             self.recording_retain_grads = False
+
+        # KL masking: compute retain KL gradient (momentum-averaged)
+        if "retain_momentum" in self.cfg and self.batch_idx >= self.recalc_every:
+            r_batch = random.choice(self.retain_batches)
+            model.zero_grad(set_to_none=True)
+            kl, _, _ = self.kl_computor.get_kl(r_batch)
+            kl.backward()
+            for param in self.base_trainable_params:
+                if hasattr(param, "ref_grad"):
+                    ref = dequantize_blockwise(*param.ref_grad)
+                else:
+                    ref = pt.zeros_like(param)
+                if param.grad is not None:
+                    momentum = self.cfg.retain_momentum
+                    ref = ref * momentum + param.grad * (1 - momentum)
+                param.ref_grad = quantize_blockwise(ref)
 
         # Forget pass
         batch = inputs["forget"]
@@ -154,5 +184,14 @@ class DISCO(UnlearnTrainer):
         # Collapse BOTH acts and grads via DISCO directions
         acts = module.act_collapser.collapse(acts)
         grads = module.grad_collapser.collapse(grads)
+
+        # KL masking: filter disruptive tokens
+        if "retain_momentum" in self.cfg:
+            ref_grad = dequantize_blockwise(*module.weight.ref_grad)
+            ref_grad = ref_grad.to(module.weight.dtype)
+            token_disr = pt.einsum("ij,ti,tj->t", ref_grad, grads, acts)
+            kl_mask = token_disr > 0
+            acts = acts[kl_mask]
+            grads = grads[kl_mask]
 
         module.weight.grad = pt.einsum("ti,tj->ij", grads, acts)

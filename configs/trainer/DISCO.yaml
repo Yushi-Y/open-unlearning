@@ -12,4 +12,4 @@ method_args:
   cfg:
     n_pcs_select: 200
     reg_eps: 1e-4
-    # n_pcs_exclude: 0  # optional PCA exclusion (ablation only)
+    retain_momentum: 0.97
