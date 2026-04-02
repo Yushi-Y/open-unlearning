@@ -1,0 +1,18 @@
+defaults:
+  - finetune
+
+handler: TwoPhase
+args:
+  optim: sgd
+  learning_rate: 0.2
+  lr_scheduler_type: constant
+  gradient_accumulation_steps: 1
+
+method_args:
+  cfg:
+    n_pcs_select: 200
+    reg_eps: 1e-4
+    retain_momentum: 0.97
+    lora_lr: 0.1
+    lora_rank: 32
+    surgery_alpha: 0.1

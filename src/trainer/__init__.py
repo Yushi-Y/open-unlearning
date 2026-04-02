@@ -23,6 +23,7 @@ from trainer.unlearn.repcollapse.disco_trainer import DISCO
 from trainer.unlearn.repcollapse.retain_aware_trainer import RetainAwareCollapse
 from trainer.unlearn.repcollapse.gradorth_trainer import GradOrth
 from trainer.unlearn.repcollapse.surgery_trainer import EigenSurgery
+from trainer.unlearn.repcollapse.twophase_trainer import TwoPhase
 import logging
 
 logger = logging.getLogger(__name__)
@@ -113,3 +114,4 @@ _register_trainer(DISCO)
 _register_trainer(RetainAwareCollapse)
 _register_trainer(GradOrth)
 _register_trainer(EigenSurgery)
+_register_trainer(TwoPhase)
