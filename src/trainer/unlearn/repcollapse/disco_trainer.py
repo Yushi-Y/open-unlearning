@@ -151,8 +151,9 @@ class DISCO(UnlearnTrainer):
         if self.batch_idx < self.recalc_every:
             return
 
-        # Collapse BOTH acts and grads via DISCO directions
+        # Collapse acts via DISCO; collapse grads only if selective dirs found
         acts = module.act_collapser.collapse(acts)
-        grads = module.grad_collapser.collapse(grads)
+        if hasattr(module.grad_collapser, "n_active") and module.grad_collapser.n_active > 0:
+            grads = module.grad_collapser.collapse(grads)
 
         module.weight.grad = pt.einsum("ti,tj->ij", grads, acts)

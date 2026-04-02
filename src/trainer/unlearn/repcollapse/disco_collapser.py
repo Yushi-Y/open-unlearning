@@ -78,9 +78,9 @@ class DiscoCollapser:
         self.eig_vec = eigenvectors  # (D, m)
         self.eigenvalues = eigenvalues
 
-        n_active = (self.weights > 0.01).sum().item()
+        self.n_active = (self.weights > 0.01).sum().item()
         logger.info(
-            f"DISCO: {n_active}/{eigenvectors.shape[1]} active dirs (dim={D}), "
+            f"DISCO: {self.n_active}/{eigenvectors.shape[1]} active dirs (dim={D}), "
             f"top-5 λ: {[f'{v:.1f}' for v in eigenvalues[:5].tolist()]}"
         )
         self._reset_vecs()
