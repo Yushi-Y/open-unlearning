@@ -14,6 +14,7 @@ method_args:
     selectivity_threshold: 1.5
     reg_eps: 1e-4
     pca_source: forget  # forget, retain, or eigenvalue
+    collapse_attn: false
     retain_momentum: 0.97
     lora_lr: 0.1
     lora_rank: 32

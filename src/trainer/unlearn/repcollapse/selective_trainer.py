@@ -40,12 +40,16 @@ class SelectiveCollapse(UnlearnTrainer):
         reg_eps = cfg.get("reg_eps", 1e-4)
         pca_source = cfg.get("pca_source", "forget")
 
+        collapse_attn = cfg.get("collapse_attn", False)
+
         self.model.requires_grad_(False)
         self.lora_params = []
         self.base_trainable_params = []
         for layer_num in range(len(self.model.model.layers)):
-            mlp = self.model.model.layers[layer_num].mlp
-            # Shared collapser for gate_proj and up_proj (same input space)
+            layer = self.model.model.layers[layer_num]
+
+            # MLP modules
+            mlp = layer.mlp
             shared_collapser = SelectiveCollapser(max_pcs, threshold, reg_eps, pca_source)
             down_collapser = SelectiveCollapser(max_pcs, threshold, reg_eps, pca_source)
             for module in [mlp.gate_proj, mlp.up_proj, mlp.down_proj]:
@@ -54,13 +58,11 @@ class SelectiveCollapse(UnlearnTrainer):
                 module.register_forward_hook(self.save_act_input_hook)
                 module.register_full_backward_hook(self.collapse_hook)
 
-                # Activation-only collapse (no grad_collapser)
                 if module is mlp.down_proj:
                     module.act_collapser = down_collapser
                 else:
                     module.act_collapser = shared_collapser
 
-                # LoRA adversary
                 if "lora_lr" in cfg:
                     module.lora_module = ManualLoRA(
                         module.weight.shape[1],
@@ -69,6 +71,23 @@ class SelectiveCollapse(UnlearnTrainer):
                     ).to(self.model.device, dtype=self.model.dtype)
                     self.lora_params.extend(module.lora_module.parameters())
                     module.register_forward_hook(self.lora_forward_hook)
+
+            # Attention modules (optional)
+            if collapse_attn:
+                attn = layer.self_attn
+                # q/k/v share input space, o_proj has different input
+                qkv_collapser = SelectiveCollapser(max_pcs, threshold, reg_eps, pca_source)
+                o_collapser = SelectiveCollapser(max_pcs, threshold, reg_eps, pca_source)
+                for module in [attn.q_proj, attn.k_proj, attn.v_proj, attn.o_proj]:
+                    module.weight.requires_grad = True
+                    self.base_trainable_params.append(module.weight)
+                    module.register_forward_hook(self.save_act_input_hook)
+                    module.register_full_backward_hook(self.collapse_hook)
+
+                    if module is attn.o_proj:
+                        module.act_collapser = o_collapser
+                    else:
+                        module.act_collapser = qkv_collapser
 
         # KL masking: pre-cache retain batches
         self.kl_computor = None
