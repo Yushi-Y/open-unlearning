@@ -88,7 +88,46 @@ class SelectiveCollapser:
         Sigma_r = (Sigma_r + Sigma_r.T) / 2
         D = Sigma_f.shape[0]
 
-        if self.pca_source == "diagonal":
+        if self.pca_source == "whiten":
+            # Per-dimension whitening: store mean and std
+            self.mean = self.forget_cov.mean.to(pt.float32)
+            self.std = Sigma_f.diagonal().clamp(min=self.reg_eps).sqrt()
+            logger.info(
+                f"SelectiveCollapser[whiten]: D={D}, "
+                f"std range [{self.std.min():.2f}, {self.std.max():.2f}]"
+            )
+            self._reset_vecs()
+            return
+
+        elif self.pca_source == "steer":
+            # Steering vector removal: d = μ_f - μ_r, normalized
+            forget_mean = self.forget_cov.mean.to(pt.float32)
+            retain_mean = self.retain_cov.mean.to(pt.float32)
+            self.mean = forget_mean
+            d = forget_mean - retain_mean
+            self.steer_dir = d / (d.norm() + 1e-8)
+            logger.info(
+                f"SelectiveCollapser[steer]: D={D}, "
+                f"steering norm={d.norm():.2f}"
+            )
+            self._reset_vecs()
+            return
+
+        elif self.pca_source == "clip":
+            # Variance clipping: store mean ± k·std
+            self.mean = self.forget_cov.mean.to(pt.float32)
+            std = Sigma_f.diagonal().clamp(min=self.reg_eps).sqrt()
+            k = 2.0  # clip at 2 standard deviations
+            self.clip_lo = (self.mean - k * std).to(pt.bfloat16)
+            self.clip_hi = (self.mean + k * std).to(pt.bfloat16)
+            logger.info(
+                f"SelectiveCollapser[clip k={k}]: D={D}, "
+                f"std range [{std.min():.2f}, {std.max():.2f}]"
+            )
+            self._reset_vecs()
+            return
+
+        elif self.pca_source == "diagonal":
             # Diagonal Mahalanobis: per-dimension forget variance, no eigenvectors
             # Use standard basis (top max_pcs dims by variance)
             diag_var = Sigma_f.diagonal().clamp(min=self.reg_eps)
@@ -234,6 +273,18 @@ class SelectiveCollapser:
             )
 
     def collapse(self, vecs):
-        centered = vecs - self.mean
-        mahal_dirs = _get_mahal_dirs(centered, self.eig_val, self.eig_vec)
-        return _proj_to_mahal_dirs(centered, mahal_dirs).to(vecs.dtype)
+        if self.pca_source == "whiten":
+            # Per-dimension whitening: (a - μ) / σ
+            return ((vecs - self.mean) / self.std).to(vecs.dtype)
+        elif self.pca_source == "steer":
+            # Remove steering vector direction: a - (a·d̂)d̂
+            centered = vecs - self.mean
+            proj = (centered @ self.steer_dir).unsqueeze(1) * self.steer_dir
+            return (centered - proj).to(vecs.dtype)
+        elif self.pca_source == "clip":
+            # Variance clipping: clamp each dim to μ ± k·σ
+            return vecs.clamp(min=self.clip_lo, max=self.clip_hi).to(vecs.dtype)
+        else:
+            centered = vecs - self.mean
+            mahal_dirs = _get_mahal_dirs(centered, self.eig_val, self.eig_vec)
+            return _proj_to_mahal_dirs(centered, mahal_dirs).to(vecs.dtype)
