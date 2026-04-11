@@ -68,7 +68,7 @@ All methods are activation-only (no gradient collapse). recall_prob at last non-
 | P5 | retain | MLP+attn | yes | yes | BROKEN ep2 | — |
 | P6 | eigenvalue | MLP+attn | yes | — | 0.039 (ep10) | 0.096 (ep10) |
 | P7 | eigenvalue | MLP+attn | — | yes | 0.104 (ep2) | — |
-| P8 | eigenvalue | MLP+attn | yes | yes | **0.014** (cyber, ep6) | running... |
+| P8 | eigenvalue | MLP+attn | yes | yes | **0.014** (cyber, ep6) | **0.039** (cyber, ep9) |
 | — | **disco** | MLP+attn | yes | yes | BROKEN ep2 | — |
 | — | diagonal | MLP+attn | yes | yes | 0.069 (ep3) | — |
 | — | GradDiff | — | — | — | 0.087 (broken ep1) | — |
