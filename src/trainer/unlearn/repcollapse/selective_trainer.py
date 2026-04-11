@@ -39,6 +39,8 @@ class SelectiveCollapse(UnlearnTrainer):
         threshold = cfg.get("selectivity_threshold", 1.5)
         reg_eps = cfg.get("reg_eps", 1e-4)
         pca_source = cfg.get("pca_source", "forget")
+        contrastive_alpha = cfg.get("contrastive_alpha", 0.5)
+        boost_beta = cfg.get("boost_beta", 0.0)
 
         collapse_attn = cfg.get("collapse_attn", False)
 
@@ -50,8 +52,8 @@ class SelectiveCollapse(UnlearnTrainer):
 
             # MLP modules
             mlp = layer.mlp
-            shared_collapser = SelectiveCollapser(max_pcs, threshold, reg_eps, pca_source)
-            down_collapser = SelectiveCollapser(max_pcs, threshold, reg_eps, pca_source)
+            shared_collapser = SelectiveCollapser(max_pcs, threshold, reg_eps, pca_source, contrastive_alpha, boost_beta)
+            down_collapser = SelectiveCollapser(max_pcs, threshold, reg_eps, pca_source, contrastive_alpha, boost_beta)
             for module in [mlp.gate_proj, mlp.up_proj, mlp.down_proj]:
                 module.weight.requires_grad = True
                 self.base_trainable_params.append(module.weight)
@@ -76,8 +78,8 @@ class SelectiveCollapse(UnlearnTrainer):
             if collapse_attn:
                 attn = layer.self_attn
                 # q/k/v share input space, o_proj has different input
-                qkv_collapser = SelectiveCollapser(max_pcs, threshold, reg_eps, pca_source)
-                o_collapser = SelectiveCollapser(max_pcs, threshold, reg_eps, pca_source)
+                qkv_collapser = SelectiveCollapser(max_pcs, threshold, reg_eps, pca_source, contrastive_alpha, boost_beta)
+                o_collapser = SelectiveCollapser(max_pcs, threshold, reg_eps, pca_source, contrastive_alpha, boost_beta)
                 for module in [attn.q_proj, attn.k_proj, attn.v_proj, attn.o_proj]:
                     module.weight.requires_grad = True
                     self.base_trainable_params.append(module.weight)

@@ -53,11 +53,14 @@ class SelectiveCollapser:
     eig_vec: pt.Tensor
 
     def __init__(self, max_pcs: int = 400, selectivity_threshold: float = 1.5,
-                 reg_eps: float = 1e-4, pca_source: str = "forget"):
+                 reg_eps: float = 1e-4, pca_source: str = "forget",
+                 contrastive_alpha: float = 0.5, boost_beta: float = 0.0):
         self.max_pcs = max_pcs
         self.selectivity_threshold = selectivity_threshold
         self.reg_eps = reg_eps
-        self.pca_source = pca_source  # "forget", "retain", or "eigenvalue"
+        self.pca_source = pca_source
+        self.contrastive_alpha = contrastive_alpha
+        self.boost_beta = boost_beta
         self._reset_vecs()
 
     def _reset_vecs(self):
@@ -133,6 +136,50 @@ class SelectiveCollapser:
                 f"SelectiveCollapser[disco]: {self.max_pcs} dirs, "
                 f"gen_eig range [{gen_eig.min():.2f}, {gen_eig.max():.2f}], "
                 f"dynamic range {gen_eig.max()/gen_eig.min():.0f}x"
+            )
+
+        elif self.pca_source == "contrastive":
+            # Contrastive PCA: PCA on (Σ_f - α·Σ_r)
+            # Isolates forget-specific variance by subtracting shared retain structure
+            alpha = self.contrastive_alpha
+            contrastive = Sigma_f - alpha * Sigma_r
+            contrastive = (contrastive + contrastive.T) / 2
+            _, S, V = pt.svd_lowrank(contrastive, q=self.max_pcs)
+            # Keep only positive eigenvalues (forget > α·retain)
+            pos_mask = S > self.reg_eps
+            n_pos = pos_mask.sum().item()
+            if n_pos == 0:
+                # Fallback to regular PCA if all eigenvalues negative
+                logger.warning(f"SelectiveCollapser[contrastive]: all eigenvalues negative, falling back to PCA")
+                _, S, V = pt.svd_lowrank(Sigma_f, q=self.max_pcs)
+                self.eig_vec = V
+                self.eig_val = S / S.min()
+            else:
+                V = V[:, pos_mask]
+                S = S[pos_mask]
+                self.eig_vec = V
+                self.eig_val = S / S.min()
+            logger.info(
+                f"SelectiveCollapser[contrastive α={alpha}]: {n_pos}/{self.max_pcs} pos dirs, "
+                f"eig range [{S.min():.2f}, {S.max():.2f}], "
+                f"dynamic range {S.max()/S.min():.0f}x"
+            )
+
+        elif self.pca_source == "boost":
+            # Hybrid PCA + selectivity boost: PCA directions, eigenvalues boosted by ratio^β
+            _, S, V = pt.svd_lowrank(Sigma_f, q=self.max_pcs)
+            forget_var = S.clamp(min=self.reg_eps)
+            retain_var = (V.T @ Sigma_r @ V).diagonal().clamp(min=self.reg_eps)
+            ratio = forget_var / retain_var
+            # Boost: eigenvalue * ratio^β (β=0 → pure PCA, β>0 → selective dirs suppressed more)
+            beta = self.boost_beta
+            boosted = S * ratio.pow(beta)
+            self.eig_vec = V
+            self.eig_val = boosted / boosted.min()
+            logger.info(
+                f"SelectiveCollapser[boost β={beta}]: {self.max_pcs} dirs, "
+                f"boosted range [{boosted.min():.2f}, {boosted.max():.2f}], "
+                f"dynamic range {boosted.max()/boosted.min():.0f}x"
             )
 
         elif self.pca_source == "retain":

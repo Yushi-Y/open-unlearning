@@ -13,8 +13,10 @@ method_args:
     max_pcs: 400
     selectivity_threshold: 1.5
     reg_eps: 1e-4
-    pca_source: forget  # forget, retain, or eigenvalue
+    pca_source: forget  # forget, retain, eigenvalue, contrastive, boost, disco, diagonal, random
     collapse_attn: false
+    contrastive_alpha: 0.5
+    boost_beta: 0.0
     retain_momentum: 0.97
     lora_lr: 0.1
     lora_rank: 32
