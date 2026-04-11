@@ -78,64 +78,93 @@ class SelectiveCollapser:
         if not self._has_forget_data or not self._has_retain_data:
             return
 
-        # Step 1: Compute both covariances
+        self.mean = self.forget_cov.mean.to(pt.float32)
         Sigma_f = self.forget_cov.get_cov().to(pt.float32)
         Sigma_f = (Sigma_f + Sigma_f.T) / 2
         Sigma_r = self.retain_cov.get_cov().to(pt.float32)
         Sigma_r = (Sigma_r + Sigma_r.T) / 2
+        D = Sigma_f.shape[0]
 
-        # Step 2: PCA — choose which covariance to decompose
-        if self.pca_source == "retain":
-            self.mean = self.retain_cov.mean.to(pt.float32)
-            _, S, V = pt.svd_lowrank(Sigma_r, q=self.max_pcs)
-            label = "retain"
-        else:  # "forget" or "eigenvalue"
-            self.mean = self.forget_cov.mean.to(pt.float32)
-            _, S, V = pt.svd_lowrank(Sigma_f, q=self.max_pcs)
-            label = "forget"
-
-        # Step 3: Determine eigenvalues for Mahalanobis scaling
-        if self.pca_source == "eigenvalue":
-            # Pure PCA eigenvalues (like RepCollapse but activation-only)
+        if self.pca_source == "diagonal":
+            # Diagonal Mahalanobis: per-dimension forget variance, no eigenvectors
+            # Use standard basis (top max_pcs dims by variance)
+            diag_var = Sigma_f.diagonal().clamp(min=self.reg_eps)
+            topk = min(self.max_pcs, D)
+            idx = diag_var.argsort(descending=True)[:topk]
+            V = pt.zeros(D, topk, device=Sigma_f.device)
+            V[idx, pt.arange(topk)] = 1.0  # standard basis vectors
+            S = diag_var[idx]
             self.eig_vec = V
             self.eig_val = S / S.min()
-            n_kept = self.max_pcs
             logger.info(
-                f"SelectiveCollapser[eigenvalue]: {n_kept} dirs, "
+                f"SelectiveCollapser[diagonal]: {topk} dims, "
+                f"var range [{S.min():.2f}, {S.max():.2f}], "
+                f"dynamic range {S.max()/S.min():.0f}x"
+            )
+
+        elif self.pca_source == "random":
+            # Random orthogonal directions + forget variance along them
+            k = self.max_pcs
+            Q, _ = pt.linalg.qr(pt.randn(D, k, device=Sigma_f.device))
+            S = (Q.T @ Sigma_f @ Q).diagonal().clamp(min=self.reg_eps)
+            self.eig_vec = Q
+            self.eig_val = S / S.min()
+            logger.info(
+                f"SelectiveCollapser[random]: {k} dirs, "
+                f"var range [{S.min():.2f}, {S.max():.2f}], "
+                f"dynamic range {S.max()/S.min():.0f}x"
+            )
+
+        elif self.pca_source == "retain":
+            self.mean = self.retain_cov.mean.to(pt.float32)
+            _, S, V = pt.svd_lowrank(Sigma_r, q=self.max_pcs)
+            self._set_ratio_scaling(V, Sigma_f, Sigma_r, "retain")
+
+        elif self.pca_source == "eigenvalue":
+            _, S, V = pt.svd_lowrank(Sigma_f, q=self.max_pcs)
+            self.eig_vec = V
+            self.eig_val = S / S.min()
+            logger.info(
+                f"SelectiveCollapser[eigenvalue]: {self.max_pcs} dirs, "
                 f"eig range [{S.min():.2f}, {S.max():.2f}], "
                 f"dynamic range {S.max()/S.min():.0f}x"
             )
-        else:
-            # Ratio-based scaling
-            forget_var = (V.T @ Sigma_f @ V).diagonal().clamp(min=self.reg_eps)
-            retain_var = (V.T @ Sigma_r @ V).diagonal().clamp(min=self.reg_eps)
-            ratio = forget_var / retain_var
 
-            if self.selectivity_threshold > 0:
-                mask = ratio > self.selectivity_threshold
-                n_kept = mask.sum().item()
-                if n_kept == 0:
-                    n_kept = min(10, self.max_pcs)
-                    mask[:n_kept] = True
-                    logger.warning(
-                        f"SelectiveCollapser: no dirs above threshold "
-                        f"{self.selectivity_threshold}, fallback to {n_kept}"
-                    )
-                self.eig_vec = V[:, mask]
-                kept_ratio = ratio[mask]
-            else:
-                self.eig_vec = V
-                kept_ratio = ratio
-                n_kept = self.max_pcs
-
-            self.eig_val = kept_ratio / kept_ratio.min()
-            logger.info(
-                f"SelectiveCollapser[{label}]: {n_kept}/{self.max_pcs} dirs, "
-                f"ratio range [{kept_ratio.min():.2f}, {kept_ratio.max():.2f}], "
-                f"top-5: {[f'{v:.2f}' for v in ratio[:5].tolist()]}"
-            )
+        else:  # "forget" — ratio-based scaling
+            _, S, V = pt.svd_lowrank(Sigma_f, q=self.max_pcs)
+            self._set_ratio_scaling(V, Sigma_f, Sigma_r, "forget")
 
         self._reset_vecs()
+
+    def _set_ratio_scaling(self, V, Sigma_f, Sigma_r, label):
+        """Ratio-based Mahalanobis scaling with optional threshold cutoff."""
+        forget_var = (V.T @ Sigma_f @ V).diagonal().clamp(min=self.reg_eps)
+        retain_var = (V.T @ Sigma_r @ V).diagonal().clamp(min=self.reg_eps)
+        ratio = forget_var / retain_var
+
+        if self.selectivity_threshold > 0:
+            mask = ratio > self.selectivity_threshold
+            n_kept = mask.sum().item()
+            if n_kept == 0:
+                n_kept = min(10, self.max_pcs)
+                mask[:n_kept] = True
+                logger.warning(
+                    f"SelectiveCollapser: no dirs above threshold "
+                    f"{self.selectivity_threshold}, fallback to {n_kept}"
+                )
+            self.eig_vec = V[:, mask]
+            kept_ratio = ratio[mask]
+        else:
+            self.eig_vec = V
+            kept_ratio = ratio
+            n_kept = self.max_pcs
+
+        self.eig_val = kept_ratio / kept_ratio.min()
+        logger.info(
+            f"SelectiveCollapser[{label}]: {n_kept}/{self.max_pcs} dirs, "
+            f"ratio range [{kept_ratio.min():.2f}, {kept_ratio.max():.2f}], "
+            f"top-5: {[f'{v:.2f}' for v in ratio[:5].tolist()]}"
+            )
 
     def collapse(self, vecs):
         centered = vecs - self.mean
