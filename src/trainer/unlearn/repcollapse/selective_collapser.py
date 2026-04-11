@@ -115,6 +115,26 @@ class SelectiveCollapser:
                 f"dynamic range {S.max()/S.min():.0f}x"
             )
 
+        elif self.pca_source == "disco":
+            # DISCO: diagonal Σ_r whitening → generalised eigenvectors
+            # Fixes: activation-only (no grad collapse), diagonal Σ_r (stable)
+            # Uses generalised eigenvalues (not ratio) for Mahalanobis scaling
+            diag_r = Sigma_r.diagonal().clamp(min=self.reg_eps)
+            inv_sqrt_diag = 1.0 / diag_r.sqrt()
+            whitened = Sigma_f * inv_sqrt_diag.unsqueeze(0) * inv_sqrt_diag.unsqueeze(1)
+            whitened = (whitened + whitened.T) / 2
+            _, gen_eig, U = pt.svd_lowrank(whitened, q=self.max_pcs)
+            # Transform back: v = D^{-1/2} u, then normalize
+            V = U * inv_sqrt_diag.unsqueeze(1)
+            V = V / V.norm(dim=0, keepdim=True)
+            self.eig_vec = V
+            self.eig_val = gen_eig / gen_eig.min()
+            logger.info(
+                f"SelectiveCollapser[disco]: {self.max_pcs} dirs, "
+                f"gen_eig range [{gen_eig.min():.2f}, {gen_eig.max():.2f}], "
+                f"dynamic range {gen_eig.max()/gen_eig.min():.0f}x"
+            )
+
         elif self.pca_source == "retain":
             self.mean = self.retain_cov.mean.to(pt.float32)
             _, S, V = pt.svd_lowrank(Sigma_r, q=self.max_pcs)
