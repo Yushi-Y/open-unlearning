@@ -54,3 +54,40 @@ Baseline: RepCollapse (PCA + Mahalanobis, n_pcs=400) = **0.032 robustness** on W
 | RepCollapse (act+grad, MLP-only) | 0.032 | 10 | ~0.01 | Original method |
 
 Attention collapse adds marginal benefit: same best recall_prob but faster convergence and lower disruption. Not a large effect — MLP collapse carries most of the signal.
+
+## Systematic grid search (2 models × method variations)
+
+All methods are activation-only (no gradient collapse). recall_prob at last non-broken epoch (lower = better).
+
+| # | pca_source | modules | KL | LoRA | Llama-3.2-3B | Qwen3-8B |
+|---|-----------|---------|-----|------|-------------|----------|
+| P1 | eigenvalue | MLP+attn | yes | yes | **0.028** (ep7) | **0.077** (ep10) |
+| P2 | eigenvalue | MLP+attn | — | — | 0.071 (ep3) | 0.112 (ep4) |
+| P3 | eigenvalue | MLP-only | — | — | 0.057 (ep4) | 0.095 (ep6) |
+| P4 | eigenvalue | MLP-only | yes | yes | **0.028** (ep8) | **0.075** (ep10) |
+| P5 | retain | MLP+attn | yes | yes | BROKEN ep2 | — |
+| P6 | eigenvalue | MLP+attn | yes | — | 0.039 (ep10) | 0.096 (ep10) |
+| P7 | eigenvalue | MLP+attn | — | yes | 0.104 (ep2) | — |
+| P8 | eigenvalue | MLP+attn | yes | yes | **0.014** (cyber, ep6) | running... |
+| — | **disco** | MLP+attn | yes | yes | BROKEN ep2 | — |
+| — | diagonal | MLP+attn | yes | yes | 0.069 (ep3) | — |
+| — | GradDiff | — | — | — | 0.087 (broken ep1) | — |
+
+### Component decomposition (Llama)
+
+| KL | LoRA | recall_prob | effect |
+|----|------|-------------|--------|
+| — | — | 0.071 | baseline |
+| yes | — | 0.039 | KL controls disruption → 1.8x better |
+| — | yes | 0.104 | LoRA alone destabilizes |
+| yes | yes | **0.028** | KL stabilizes, LoRA pushes robustness |
+
+### Conclusions
+
+1. **Best method**: forget PCA eigenvalue + act-only collapse + KL masking + LoRA adversary
+2. **KL masking is the key component** — provides stability for long training (10+ epochs)
+3. **LoRA adversary enhances robustness** — but only works with KL masking
+4. **MLP+attn ≈ MLP-only** with KL+LoRA — attention collapse adds marginal speed benefit
+5. **Forget PCA eigenvalue >> all alternatives**: retain PCA (broken), DISCO generalised eigenvectors (broken), diagonal (0.069), ratio scaling (0.071+)
+6. **Generalises across models**: same best config wins on Llama-3.2-3B and Qwen3-8B
+7. **Cyber easier than bio**: 0.014 vs 0.028 on Llama
