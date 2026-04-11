@@ -98,7 +98,7 @@ class SelectiveCollapse(UnlearnTrainer):
             # Forward pass: collect retain activations
             self.recording_retain = True
             with pt.no_grad():
-                model(**prep_batch(r_batch, model.device))
+                model(**prep_batch(r_batch, self.model.device))
             self.recording_retain = False
 
         # KL masking: compute retain KL gradient
@@ -127,7 +127,7 @@ class SelectiveCollapse(UnlearnTrainer):
 
         self.use_hooks = True
         model.zero_grad(set_to_none=True)
-        output = model(**prep_batch(batch, model.device))
+        output = model(**prep_batch(batch, self.model.device))
         forget_loss = -output.loss
 
         for p in self.base_trainable_params:

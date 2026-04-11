@@ -15,16 +15,7 @@ from trainer.unlearn.ceu import CEU
 from trainer.unlearn.satimp import SatImp
 from trainer.unlearn.wga import WGA
 from trainer.unlearn.pdu import PDU
-from trainer.unlearn.repcollapse.repcollapse_trainer import RepCollapse
-from trainer.unlearn.repcollapse.repcollapse_cohen_trainer import RepCollapseCohen
-from trainer.unlearn.repcollapse.repcollapse_moe_trainer import RepCollapseMOE
 from trainer.unlearn.repcollapse.disrcollapse_trainer import DisrCollapse
-from trainer.unlearn.repcollapse.disco_trainer import DISCO
-from trainer.unlearn.repcollapse.retain_aware_trainer import RetainAwareCollapse
-from trainer.unlearn.repcollapse.gradorth_trainer import GradOrth
-from trainer.unlearn.repcollapse.surgery_trainer import EigenSurgery
-from trainer.unlearn.repcollapse.twophase_trainer import TwoPhase
-from trainer.unlearn.repcollapse.disco_v2_trainer import DISCOv2
 from trainer.unlearn.repcollapse.selective_trainer import SelectiveCollapse
 import logging
 
@@ -108,14 +99,5 @@ _register_trainer(CEU)
 _register_trainer(SatImp)
 _register_trainer(WGA)
 _register_trainer(PDU)
-_register_trainer(RepCollapse)
-_register_trainer(RepCollapseCohen)
-_register_trainer(RepCollapseMOE)
 _register_trainer(DisrCollapse)
-_register_trainer(DISCO)
-_register_trainer(RetainAwareCollapse)
-_register_trainer(GradOrth)
-_register_trainer(EigenSurgery)
-_register_trainer(TwoPhase)
-_register_trainer(DISCOv2)
 _register_trainer(SelectiveCollapse)
