@@ -82,12 +82,22 @@ All methods are activation-only (no gradient collapse). recall_prob at last non-
 | — | yes | 0.104 | LoRA alone destabilizes |
 | yes | yes | **0.028** | KL stabilizes, LoRA pushes robustness |
 
+### Cyber domain grid
+
+| Config | Llama Cyber | Qwen Cyber |
+|--------|-------------|------------|
+| eig MLP+attn KL+LoRA | **0.014** (ep6) | 0.039 (ep9) |
+| eig MLP-only KL+LoRA | 0.019 (ep5) | **0.035** (ep10) |
+| eig MLP+attn KL no-LoRA | 0.024 (ep4) | 0.044 (ep10) |
+| eig MLP+attn no-KL no-LoRA | BROKEN ep2 | 0.054 (ep4) |
+
 ### Conclusions
 
 1. **Best method**: forget PCA eigenvalue + act-only collapse + KL masking + LoRA adversary
 2. **KL masking is the key component** — provides stability for long training (10+ epochs)
 3. **LoRA adversary enhances robustness** — but only works with KL masking
-4. **MLP+attn ≈ MLP-only** with KL+LoRA — attention collapse adds marginal speed benefit
+4. **MLP+attn ≈ MLP-only** with KL+LoRA — marginal, model-dependent
 5. **Forget PCA eigenvalue >> all alternatives**: retain PCA (broken), DISCO generalised eigenvectors (broken), diagonal (0.069), ratio scaling (0.071+)
 6. **Generalises across models**: same best config wins on Llama-3.2-3B and Qwen3-8B
-7. **Cyber easier than bio**: 0.014 vs 0.028 on Llama
+7. **Cyber easier than bio**: Llama 0.014 vs 0.028, Qwen 0.035 vs 0.075
+8. **Qwen more stable than Llama**: rarely breaks, but converges slower (needs 10 epochs)
