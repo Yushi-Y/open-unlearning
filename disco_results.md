@@ -101,3 +101,21 @@ All methods are activation-only (no gradient collapse). recall_prob at last non-
 6. **Generalises across models**: same best config wins on Llama-3.2-3B and Qwen3-8B
 7. **Cyber easier than bio**: Llama 0.014 vs 0.028, Qwen 0.035 vs 0.075
 8. **Qwen more stable than Llama**: rarely breaks, but converges slower (needs 10 epochs)
+
+## Interp-motivated alternatives (non-PCA)
+
+All with KL+LoRA, MLP+attn, activation-only.
+
+| Method | Llama Bio | Qwen Bio | Complexity | Interp motivation |
+|--------|-----------|----------|------------|-------------------|
+| PCA eigenvalue (baseline) | **0.028** (ep8) | 0.077 (ep10) | PCA + Mahalanobis | attacker subspace |
+| Contrastive PCA α=0.5 | 0.035 (ep5) | **0.070** (ep9) | PCA on (Σ_f-αΣ_r) + Mahalanobis | shared-not-harmful |
+| Whitening `(a-μ)/σ` | 0.042 (ep7) | running... | 2 lines, no PCA | equalize variance |
+| Steering vector removal | running... | next | 1 direction | steering alignment |
+| Diagonal Mahalanobis | 0.069 (ep3) | — | basis + Mahalanobis | per-dim variance |
+| DISCO gen. eigenvectors | BROKEN | — | whitened SVD | selectivity |
+
+### Key finding
+- **Contrastive PCA beats standard PCA on Qwen** (0.070 vs 0.077) — subtracting shared retain variance helps on larger models
+- **Whitening** (0.042) is remarkably effective for 2 lines of code — equalizing variance prevents attacker concentration
+- Both contrastive PCA and whitening are interp-motivated and simpler than full PCA Mahalanobis
