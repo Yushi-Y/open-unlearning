@@ -63,123 +63,118 @@ def wmdp_low_mi(cfg, tokenizer, **kwargs):
     T = load_hf_cached(path=f"filypo/wmdp_{cfg.dataset}_T", split="train")
     V = load_hf_cached(path=f"filypo/wmdp_{cfg.dataset}_V", split="train")
 
-    T_and_V = concatenate_datasets([T, V])
-    eval_qs = T_and_V if cfg.get("eval_on_all_questions", False) else V
-    logging.info(f"{len(T)=}, {len(V)=}, {len(eval_qs)=}")
+    full = concatenate_datasets([T, V])
+    mid = len(full) // 2
+    split1 = full.select(range(mid))
+    split2 = full.select(range(mid, len(full)))
+    logging.info(f"{len(full)=}, {len(split1)=}, {len(split2)=}")
 
     training_samples = [
         _tokenize(q["sentences"][idx], tokenizer, cfg.tokenizer)
         for idx in range(cfg.num_examples_per_question)
-        for q in T_and_V
+        for q in full
     ]
 
     relearning_samples = [
         _tokenize(q["sentences"][idx], tokenizer, cfg.tokenizer)
         for idx in range(cfg.num_examples_per_question)
-        for q in T
+        for q in split1
     ]
 
-    recall_samples = _load_recall_samples(eval_qs, cfg.tokenizer, tokenizer)
+    recall_samples = _load_recall_samples(split2, cfg.tokenizer, tokenizer)
 
     return dict(
         forget=training_samples,
         relearn=relearning_samples,
         recall=recall_samples,
-        eval_qs=eval_qs,
-        fewshot_qs=T,  # raw questions for few-shot attack eval (relearn split)
+        eval_qs=split2,
     )
 
 
 ########################### BEAVERTTAILS ###########################
 
 
-def beavertails(cfg, tokenizer, **kwargs):
-    # splits: 330k_train, 330k_test, 30k_train, 30k_test
-    full_bt = load_hf_cached("PKU-Alignment/BeaverTails", split=cfg.split)
-
-    if cfg.category == "safe":
-        texts = full_bt.filter(lambda x: x["is_safe"])
+def _get_beavertails_sample(prompt, response, tokenizer, cfg):
+    if tokenizer.chat_template is None:
+        # we don't use "Question:...\nAnswer:..." format, to not have unlearning base too much on these tokens
+        full_txt = f"{prompt} {response}"
+        beginning_text = prompt
     else:
-        texts = full_bt.filter(lambda x: x["category"][cfg.category])
+        chat = [
+            # note that we skip the system prompt
+            {"role": "user", "content": prompt},
+            {"role": "assistant", "content": response},
+        ]
+        full_txt = tokenizer.apply_chat_template(
+            chat, tokenize=False, date_string=DATE_STRING
+        )
+        beginning_text = tokenizer.apply_chat_template(
+            chat[:-1],
+            tokenize=False,
+            date_string=DATE_STRING,
+            add_generation_prompt=True,
+        )
 
+    sample = _tokenize(full_txt, tokenizer, cfg.tokenizer)
+    beginning_len = len(tokenizer(beginning_text, **cfg.tokenizer)["input_ids"])
+    sample["labels"][:beginning_len] = -100
+    return sample
+
+
+# def beavertails(cfg, tokenizer, **kwargs):
+#     # splits: 330k_train, 330k_test, 30k_train, 30k_test
+#     full_bt = load_hf_cached("PKU-Alignment/BeaverTails", split=cfg.split)
+
+#     if cfg.category == "safe":
+#         texts = full_bt.filter(lambda x: x["is_safe"])
+#     else:
+#         texts = full_bt.filter(lambda x: x["category"][cfg.category])
+
+#     len_ = cfg.range[1] - cfg.range[0]
+#     logging.info(f"{cfg.dataset_name} {len_}/{len(texts)}")
+#     samples = []
+#     for text in texts.select(range(*cfg.range)):
+#         samples.append(
+#             _get_beavertails_sample(text["prompt"], text["response"], tokenizer, cfg)
+#         )
+
+#     assert len(samples) == len_
+#     return {cfg.dataset_name: samples}
+
+
+# def beavertails_curated(cfg, tokenizer, **kwargs):
+#     # splits: animal_abuse, terrorism_organized_crime, safe
+#     ds = load_hf_cached("filypo/beavertails-curated", split=cfg.split)
+#     texts = ds.filter(lambda x: x["label_correct"])
+#     len_ = cfg.range[1] - cfg.range[0]
+#     texts = texts.select(range(*cfg.range))
+#     logging.info(f"{cfg.dataset_name} {len_}/{len(ds)} (filtered by label_correct)")
+
+#     samples = []
+#     for text in texts:
+#         samples.append(
+#             _get_beavertails_sample(text["prompt"], text["response"], tokenizer, cfg)
+#         )
+
+#     assert len(samples) == len_
+#     return {cfg.dataset_name: samples}
+
+
+def beavertails_contrast(cfg, tokenizer, **kwargs):
+    # filypo/beavertails-contrast — contrast (retain) pairs, index-aligned with beavertails-curated
+    # Do NOT shuffle: ordering must be preserved for index alignment with forget set
+    texts = load_hf_cached("filypo/beavertails-contrast", split=cfg.split)
     len_ = cfg.range[1] - cfg.range[0]
-    logging.info(f"{cfg.dataset_name} {len_}/{len(texts)}")
-    samples = []
-    for text in texts.select(range(*cfg.range)):
-        # if tokenizer.chat_template is None or cfg.dataset_name in ["forget","retain"]:
-        if tokenizer.chat_template is None:
-            # we don't use "Question:...\nAnswer:..." format, to not have unlearning base too much on these tokens
-            full_txt = f"{text['prompt']} {text['response']}"
-            beginning_text = text["prompt"]
-        else:
-            chat = [
-                # note that we skip the system prompt
-                {"role": "user", "content": text["prompt"]},
-                {"role": "assistant", "content": text["response"]},
-            ]
-            full_txt = tokenizer.apply_chat_template(
-                chat, tokenize=False, date_string=DATE_STRING
-            )
-            beginning_text = tokenizer.apply_chat_template(
-                chat[:-1],
-                tokenize=False,
-                date_string="10 Apr 2025",
-                add_generation_prompt=True,
-            )
-
-        sample = _tokenize(full_txt, tokenizer, cfg.tokenizer)
-        beginning_len = len(tokenizer(beginning_text, **cfg.tokenizer)["input_ids"])
-        sample["labels"][:beginning_len] = -100
-        samples.append(sample)
-
-    assert len(samples) == len_
-    return {cfg.dataset_name: samples}
-
-
-def beavertails_fewshot_raw(cfg, **kwargs):
-    """Load raw BeaverTails prompt-response pairs for few-shot attack evaluation."""
-    ds = load_hf_cached("filypo/beavertails-curated", split=cfg.split)
-    texts = ds.filter(lambda x: x["label_correct"])
     texts = texts.select(range(*cfg.range))
-    raw = [{"prompt": t["prompt"], "response": t["response"]} for t in texts]
-    return {cfg.dataset_name: raw}
-
-
-def beavertails_curated(cfg, tokenizer, **kwargs):
-    # splits: animal_abuse, terrorism_organized_crime, safe
-    ds = load_hf_cached("filypo/beavertails-curated", split=cfg.split)
-    texts = ds.filter(lambda x: x["label_correct"])
-    if "range" in cfg:
-        len_ = cfg.range[1] - cfg.range[0]
-        texts = texts.select(range(*cfg.range))
-    else:
-        len_ = len(texts)
-    logging.info(f"{cfg.dataset_name} {len_}/{len(ds)} (filtered by label_correct)")
+    logging.info(f"{cfg.dataset_name} {len_}/{len(texts)} (contrast set)")
 
     samples = []
     for text in texts:
-        if tokenizer.chat_template is None:
-            full_txt = f"{text['prompt']} {text['response']}"
-            beginning_text = text["prompt"]
+        if cfg.original:
+            prompt, response = text["original_prompt"], text["original_response"]
         else:
-            chat = [
-                {"role": "user", "content": text["prompt"]},
-                {"role": "assistant", "content": text["response"]},
-            ]
-            full_txt = tokenizer.apply_chat_template(
-                chat, tokenize=False, date_string=DATE_STRING
-            )
-            beginning_text = tokenizer.apply_chat_template(
-                chat[:-1],
-                tokenize=False,
-                date_string="10 Apr 2025",
-                add_generation_prompt=True,
-            )
-
-        sample = _tokenize(full_txt, tokenizer, cfg.tokenizer)
-        beginning_len = len(tokenizer(beginning_text, **cfg.tokenizer)["input_ids"])
-        sample["labels"][:beginning_len] = -100
-        samples.append(sample)
+            prompt, response = text["retain_prompt"], text["retain_response"]
+        samples.append(_get_beavertails_sample(prompt, response, tokenizer, cfg))
 
     assert len(samples) == len_
     return {cfg.dataset_name: samples}

@@ -23,27 +23,13 @@ eval:
     handler: KLEvaluator
     dataset_name: wikitext
     disr_budget: 0.01
-  safe_eval:
-    handler: KLEvaluator
-    dataset_name: safe_eval  # like retain, but different split
-    disr_budget: null
+  # safe_eval:
+  #   handler: KLEvaluator
+  #   dataset_name: safe_eval  # like retain, but different split
+  #   disr_budget: null
   holdout_harmful:
     handler: ProbabilityEvaluator
     dataset_name: holdout_harmful
-  fewshot_attack:
-    handler: FewShotBeaverTailsEvaluator
-    num_fewshot: 5
-    max_length: 2048
-  fewshot_attack_10:
-    handler: FewShotBeaverTailsEvaluator
-    num_fewshot: 10
-    max_length: 2048
-  # general_caps: run post-training only (see scripts/run_posthoc_eval.sh)
-  # general_caps:
-  #   handler: LMEvalEvaluator
-  #   tasks:
-  #     - hellaswag
-  #   overwrite: False
 
 tokenizer_cfg:
   max_length: 128
@@ -51,56 +37,46 @@ tokenizer_cfg:
 # CLI: category=... to switch category
 # curated splits: animal_abuse, terrorism_organized_crime
 # correct counts: animal_abuse=898, terrorism_organized_crime=1595, safe=3729
+# in the contrast set: animal_abuse=871
 category: animal_abuse
 
 data:
+  anchor: paired
   custom_loaders:
     # filypo/beavertails-curated — only label_correct=True examples used
-    - loader: beavertails_curated
+    - loader: beavertails_contrast
+      original: true
       dataset_name: forget
-      range: [0, 385]
+      range: [0, 128]
       split: ${category}
       tokenizer: ${tokenizer_cfg}
 
-    - loader: beavertails_curated
+    - loader: beavertails_contrast
+      original: true
       dataset_name: relearn
-      range: [385, 770]
+      range: [128, 256]
       split: ${category}
       tokenizer: ${tokenizer_cfg}
 
-    - loader: beavertails_curated
+    - loader: beavertails_contrast
+      original: true
       dataset_name: holdout_harmful
-      range: [770, 898]
+      range: [500, 564]
       split: ${category}
       tokenizer: ${tokenizer_cfg}
 
-    - loader: beavertails_fewshot_raw
-      dataset_name: fewshot_raw
-      range: [385, 770]
-      split: ${category}
-
-    - loader: beavertails_fewshot_raw
-      dataset_name: holdout_raw
-      range: [770, 898]
-      split: ${category}
-
-    - loader: beavertails_curated
+    - loader: beavertails_contrast
+      original: false
       dataset_name: retain
-      range: [0, 1000]
-      split: safe
-      tokenizer: ${tokenizer_cfg}
-
-    - loader: beavertails_curated
-      dataset_name: safe_eval
-      range: [1000, 1128]
-      split: safe
+      range: [0, 128]
+      split: animal_abuse
       tokenizer: ${tokenizer_cfg}
 
     - loader: load_hf_and_tokenize
       dataset_name: wikitext
       hf_args:
         path: filypo/wikitext_16k
-      range: [0, 128]
+      range: [0, 64]
       tokenizer: ${tokenizer_cfg}
 
 relearning_trainer:
@@ -109,7 +85,7 @@ relearning_trainer:
   handler: FinetuneTrainer
   args:
     optim: adamw_8bit  # sgd | adamw_8bit | paged_adamw_8bit
-    learning_rate: 1e-5  # epochs are long, so use smaller learning rate
+    learning_rate: 5e-6  # epochs are long, so use smaller learning rate
     lr_scheduler_type: constant
     report_to: wandb  # none|tensorboard|wandb|dvclive|comet_ml
     run_name: ${task_name}
@@ -133,3 +109,4 @@ hydra:
     sampler:
       _target_: optuna.samplers.TPESampler
       seed: ${trainer.args.seed}  # deterministic
+

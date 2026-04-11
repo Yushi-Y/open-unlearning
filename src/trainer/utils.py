@@ -7,6 +7,8 @@ import torch as pt
 import torch.nn.functional as F
 from torch import nn
 
+from bitsandbytes.functional import dequantize_blockwise, quantize_blockwise
+
 
 def seed_everything(seed=42):
     random.seed(seed)
@@ -149,10 +151,58 @@ def _get_label_logits(logits, labels):
     return logits[pt.arange(len(labels)), labels]
 
 
-def label_logits(logits, labels):
+def normalize_grads(params):
+    """L2 norm of weight.grad, computed across all the trainable weights."""
+    if all(param.grad is None for param in params):
+        return
+    update_norm = pt.sqrt(
+        sum(
+            param.grad.float().norm() ** 2 for param in params if param.grad is not None
+        )
+    )
+    update_norm = update_norm.clamp(min=1e-8)
+    # normalize the grads
+    for param in params:
+        if param.grad is not None:
+            param.grad /= update_norm
+
+
+def sanitize_tensor(t, epsilon=1e-6):
+    sign = t.sign()
+    sign[sign == 0] = 1
+    return t + sign * epsilon
+
+
+@contextmanager
+def require_grad(params):
+    for p in params:
+        p.requires_grad_(True)
+    try:
+        yield
+    finally:
+        for p in params:
+            p.requires_grad_(False)
+
+
+def update_ref_grad(param, retain_momentum):
+    if hasattr(param, "ref_grad"):
+        ref = dequantize_blockwise(*param.ref_grad)
+    else:
+        ref = pt.zeros_like(param)  # initialize to zero
+
+    if param.grad is not None:
+        momentum = retain_momentum
+        ref = ref * momentum + param.grad * (1 - momentum)
+    param.ref_grad = quantize_blockwise(ref)
+
+
+# LOSS FUNCTIONS
+
+
+def label_logits(logits, labels, clip=0):
     label_logits = _get_label_logits(logits, labels)
     # label_logits = pt.atan(label_logits / 20)
-    clipped_label_logits = label_logits.clip(min=0)
+    clipped_label_logits = label_logits.clip(min=clip)
     return clipped_label_logits.float().mean()
 
 
@@ -165,24 +215,19 @@ def label_logits(logits, labels):
 #     return unlearning_saturations.mean()
 
 
-def normalize_grads(params):
-    """L2 norm of weight.grad, computed across all the trainable weights."""
-    if all(param.grad is None for param in params):
-        return
-    update_norm = pt.sqrt(
-        sum(
-            param.grad.float().norm() ** 2
-            for param in params
-            if param.grad is not None
-        )
+def npo_saturating_loss(output, batch, beta):
+    logits = output.logits
+    labels = batch["labels"].to(logits.device)
+    shifted_labels = labels[..., 1:].contiguous()
+    shifted_logits = logits[..., :-1, :].contiguous()
+    per_token_nll = F.cross_entropy(
+        shifted_logits.transpose(-1, -2),
+        shifted_labels,
+        ignore_index=-100,
+        reduction="none",
     )
-    # normalize the grads
-    for param in params:
-        if param.grad is not None:
-            param.grad /= update_norm
-
-
-def sanitize_tensor(t, epsilon=1e-6):
-    sign = t.sign()
-    sign[sign == 0] = 1
-    return t + sign * epsilon
+    per_seq_nll = per_token_nll.sum(dim=-1)
+    if "initial_nll" not in batch:
+        batch["initial_nll"] = per_seq_nll.detach()
+    diff = per_seq_nll - batch["initial_nll"].to(per_seq_nll.device)
+    return -F.logsigmoid(beta * diff).mean() / beta
