@@ -26,7 +26,21 @@ Baseline: RepCollapse (PCA + Mahalanobis, n_pcs=400) = **0.032 robustness** on W
 - **Core finding**: The Mahalanobis formula uses eigenvalue *magnitude* (not just ranking). PCA eigenvalues have huge dynamic range → strong suppression of top PCs. Ratios have small dynamic range → weak suppression. Even identical rankings give different results when magnitudes differ.
 - **Activation-only vs dual collapse**: Both iters use activation-only. Without gradient collapse baseline for comparison, can't isolate this effect yet.
 
-### Conclusion
-PCA eigenvalue Mahalanobis > ratio Mahalanobis > ratio cutoff.
-The eigenvalue magnitude's large dynamic range is essential, not just the direction ranking.
-This closes the DISCO/selective approach — PCA is not just near-optimal in ranking, it's optimal in scaling too.
+## Ablation: PCA source + scaling (activation-only, KL+LoRA)
+
+| iter | pca_source | scaling | best recall_prob (not broken) | epoch | notes |
+|------|-----------|---------|-------------------------------|-------|-------|
+| 2 | forget | eigenvalue | **0.028** | 8 | Beats RepCollapse (0.032)! Dynamic range 28-531x. Activation-only. |
+| 3 | retain | ratio | 0.053 | 3 | Better than forget+ratio. Stable (breaks ep4). Retain dirs ≠ forget dirs. |
+| 1 | forget | ratio | 0.106 | 2 | Ratio dynamic range only 3-8x → weak suppression. |
+| 0 | forget | ratio+cutoff | 0.094 | 2 | Most layers 0 dirs above threshold → fallback to 10 PCs. |
+
+### Key findings
+
+1. **Activation-only collapse + eigenvalue scaling beats RepCollapse** (0.028 vs 0.032). Gradient collapse is unnecessary — simpler and better.
+
+2. **Eigenvalue magnitude is essential**: Dynamic range 28-531x (eigenvalues) vs 3-8x (ratios). The Mahalanobis suppression factor 1-min/val needs large dynamic range to strongly suppress top PCs.
+
+3. **Forget PCA > retain PCA** (when using eigenvalues): Forget PCA directions align with the attacker's subspace. But when using ratio scaling (which strips magnitude), retain PCA actually outperforms forget PCA (0.053 vs 0.106) — retain directions are more stable.
+
+4. **Answer to Filip's question "why forget not retain PCA?"**: It's NOT about the directions (retain PCA dirs are actually more stable with ratio scaling). It's about the eigenvalue magnitude — forget PCA eigenvalues have the right dynamic range for Mahalanobis suppression. Retain PCA eigenvalues would have a different (retain-focused) dynamic range that doesn't target the attacker's subspace.

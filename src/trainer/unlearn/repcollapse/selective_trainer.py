@@ -38,6 +38,7 @@ class SelectiveCollapse(UnlearnTrainer):
         max_pcs = cfg.get("max_pcs", 400)
         threshold = cfg.get("selectivity_threshold", 1.5)
         reg_eps = cfg.get("reg_eps", 1e-4)
+        pca_source = cfg.get("pca_source", "forget")
 
         self.model.requires_grad_(False)
         self.lora_params = []
@@ -45,8 +46,8 @@ class SelectiveCollapse(UnlearnTrainer):
         for layer_num in range(len(self.model.model.layers)):
             mlp = self.model.model.layers[layer_num].mlp
             # Shared collapser for gate_proj and up_proj (same input space)
-            shared_collapser = SelectiveCollapser(max_pcs, threshold, reg_eps)
-            down_collapser = SelectiveCollapser(max_pcs, threshold, reg_eps)
+            shared_collapser = SelectiveCollapser(max_pcs, threshold, reg_eps, pca_source)
+            down_collapser = SelectiveCollapser(max_pcs, threshold, reg_eps, pca_source)
             for module in [mlp.gate_proj, mlp.up_proj, mlp.down_proj]:
                 module.weight.requires_grad = True
                 self.base_trainable_params.append(module.weight)
