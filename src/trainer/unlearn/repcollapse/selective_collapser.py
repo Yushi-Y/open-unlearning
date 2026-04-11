@@ -95,31 +95,34 @@ class SelectiveCollapser:
         # Step 3: Selectivity ratio
         ratio = forget_var / retain_var  # (max_pcs,)
 
-        # Step 4: Auto-cutoff — keep only directions with ratio > threshold
-        mask = ratio > self.selectivity_threshold
-        n_kept = mask.sum().item()
-
-        if n_kept == 0:
-            # Fallback: keep top 10 directions even if below threshold
-            n_kept = min(10, self.max_pcs)
-            mask[:n_kept] = True
-            logger.warning(
-                f"SelectiveCollapser: no directions above threshold "
-                f"{self.selectivity_threshold}, falling back to top {n_kept}"
-            )
-
-        # Filter to kept directions
-        self.eig_vec = V[:, mask]        # (D, n_kept)
-        kept_ratio = ratio[mask]         # (n_kept,)
+        # Step 4: Select directions
+        if self.selectivity_threshold > 0:
+            # Cutoff mode: keep only directions with ratio > threshold
+            mask = ratio > self.selectivity_threshold
+            n_kept = mask.sum().item()
+            if n_kept == 0:
+                n_kept = min(10, self.max_pcs)
+                mask[:n_kept] = True
+                logger.warning(
+                    f"SelectiveCollapser: no directions above threshold "
+                    f"{self.selectivity_threshold}, falling back to top {n_kept}"
+                )
+            self.eig_vec = V[:, mask]
+            kept_ratio = ratio[mask]
+        else:
+            # No cutoff: keep all PCs, weight by ratio
+            self.eig_vec = V
+            kept_ratio = ratio
+            n_kept = self.max_pcs
 
         # Step 5: Use ratio as eigenvalue for Mahalanobis scaling
         # Normalize so min = 1 (same convention as CovCollapser)
         self.eig_val = kept_ratio / kept_ratio.min()
 
         logger.info(
-            f"SelectiveCollapser: {n_kept}/{self.max_pcs} dirs above "
-            f"threshold={self.selectivity_threshold}, "
-            f"ratio range [{ratio[mask].min():.2f}, {ratio[mask].max():.2f}], "
+            f"SelectiveCollapser: {n_kept}/{self.max_pcs} dirs kept "
+            f"(threshold={self.selectivity_threshold}), "
+            f"ratio range [{kept_ratio.min():.2f}, {kept_ratio.max():.2f}], "
             f"top-5 ratio: {[f'{v:.2f}' for v in ratio[:5].tolist()]}"
         )
 

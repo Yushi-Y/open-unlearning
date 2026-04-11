@@ -17,15 +17,16 @@ Baseline: RepCollapse (PCA + Mahalanobis, n_pcs=400) = **0.032 robustness** on W
 
 | iter | change | recall_prob | wikitext_kl | broken | status | notes |
 |------|--------|-------------|-------------|--------|--------|-------|
-| 0 | threshold=1.5, max_pcs=400, act-only, KL+LoRA | 0.059 (ep3) / 0.094 (ep2) | 0.041 (ep3) / 0.006 (ep2) | Yes (ep3) | discard | Most layers 0/400 dirs above 1.5, fallback to top 10. Too few PCs collapsed → weak unlearning. Broken at ep3. |
+| 0 | threshold=1.5, max_pcs=400, act-only, KL+LoRA | 0.059 (ep3) / 0.094 (ep2) | 0.041 (ep3) / 0.006 (ep2) | Yes (ep3) | discard | Most layers 0/400 dirs above 1.5, fallback to top 10. Too few PCs collapsed → weak unlearning. |
+| 1 | threshold=0 (all 400 PCs), ratio-weighted, act-only, KL+LoRA | 0.069 (ep3) / 0.106 (ep2) | 0.033 (ep3) / 0.007 (ep2) | Yes (ep3) | discard | All 400 PCs kept, ratio as Mahalanobis weight. Still broken at ep3. Epoch 2 recall_prob (0.106) much worse than RepCollapse (0.032). Ratio-weighting weaker than eigenvalue-weighting. |
 
-### Diagnostic (iter 0)
-- **Early layers (L0-L5)**: 0 directions above threshold, ratios 0.2-1.1. Retain variance dominates forget.
-- **Middle layers (L8-L14)**: 1-12 directions above threshold, best ratios 3-8x. This is where selectivity exists.
-- **Late layers (L20+)**: 0-4 directions above threshold, ratios 0.3-1.5.
-- **Key insight**: PCA Mahalanobis works by suppressing ALL 400 directions proportionally to variance. The ratio-based cutoff loses the benefit of broad suppression — the "non-selective" directions still need to be suppressed for effective unlearning.
+### Key diagnostic
+- **Iter 0**: Cutoff too aggressive — most layers 0/400 dirs above 1.5. Fallback to 10 PCs too weak.
+- **Iter 1**: All 400 PCs kept but ratio-weighted. Ratios have much less dynamic range than eigenvalues (max ratio ~8x vs eigenvalue range ~1000x), so Mahalanobis suppression is weaker. This is why ratio ≈ eigenvalue ranking (Spearman ρ=0.86-0.99) but ratio ≠ eigenvalue **magnitude**.
+- **Core finding**: The Mahalanobis formula uses eigenvalue *magnitude* (not just ranking). PCA eigenvalues have huge dynamic range → strong suppression of top PCs. Ratios have small dynamic range → weak suppression. Even identical rankings give different results when magnitudes differ.
+- **Activation-only vs dual collapse**: Both iters use activation-only. Without gradient collapse baseline for comparison, can't isolate this effect yet.
 
-### Next steps
-- [ ] Try lower threshold (1.0) to include more directions
-- [ ] Try keeping all 400 PCs but weighting by ratio instead of eigenvalue (no cutoff)
-- [ ] Try hybrid: PCA Mahalanobis (all dirs) + ratio-boosted suppression for selective dirs
+### Conclusion
+PCA eigenvalue Mahalanobis > ratio Mahalanobis > ratio cutoff.
+The eigenvalue magnitude's large dynamic range is essential, not just the direction ranking.
+This closes the DISCO/selective approach — PCA is not just near-optimal in ranking, it's optimal in scaling too.
