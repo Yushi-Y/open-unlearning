@@ -44,3 +44,13 @@ Baseline: RepCollapse (PCA + Mahalanobis, n_pcs=400) = **0.032 robustness** on W
 3. **Forget PCA > retain PCA** (when using eigenvalues): Forget PCA directions align with the attacker's subspace. But when using ratio scaling (which strips magnitude), retain PCA actually outperforms forget PCA (0.053 vs 0.106) — retain directions are more stable.
 
 4. **Answer to Filip's question "why forget not retain PCA?"**: It's NOT about the directions (retain PCA dirs are actually more stable with ratio scaling). It's about the eigenvalue magnitude — forget PCA eigenvalues have the right dynamic range for Mahalanobis suppression. Retain PCA eigenvalues would have a different (retain-focused) dynamic range that doesn't target the attacker's subspace.
+
+## Attention collapse ablation
+
+| Method | best recall_prob | epoch | wikitext_kl | notes |
+|--------|-----------------|-------|-------------|-------|
+| MLP + Attn (act-only, eigenvalue) | **0.028** | 7 | 0.007 | Reaches same result 1 epoch faster, lower KL |
+| MLP-only (act-only, eigenvalue) | 0.028 | 8 | 0.009 | Baseline |
+| RepCollapse (act+grad, MLP-only) | 0.032 | 10 | ~0.01 | Original method |
+
+Attention collapse adds marginal benefit: same best recall_prob but faster convergence and lower disruption. Not a large effect — MLP collapse carries most of the signal.
