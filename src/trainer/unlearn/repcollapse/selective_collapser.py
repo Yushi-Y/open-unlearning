@@ -152,6 +152,65 @@ class SelectiveCollapser:
             self._reset_vecs()
             return
 
+        elif self.pca_source == "random_proj":
+            # Random orthogonal basis + variance in projected space
+            # Concentrates update into k-dim subspace (like PCA) but random directions
+            k = self.max_pcs
+            Q, _ = pt.linalg.qr(pt.randn(D, k, device=Sigma_f.device))
+            # Variance along each random direction
+            S = (Q.T @ Sigma_f @ Q).diagonal().clamp(min=self.reg_eps)
+            self.eig_vec = Q
+            self.eig_val = S / S.min()
+            logger.info(
+                f"SelectiveCollapser[random_proj]: {k} dirs, "
+                f"var range [{S.min():.2f}, {S.max():.2f}], "
+                f"dynamic range {S.max()/S.min():.0f}x"
+            )
+
+        elif self.pca_source == "topk_dims":
+            # Top-k dims by forget variance + Mahalanobis projection
+            # Sparse basis: coordinate axes of highest-variance dims
+            diag_var = Sigma_f.diagonal().clamp(min=self.reg_eps)
+            k = min(self.max_pcs, D)
+            idx = diag_var.argsort(descending=True)[:k]
+            V = pt.zeros(D, k, device=Sigma_f.device)
+            V[idx, pt.arange(k)] = 1.0
+            S = diag_var[idx]
+            self.eig_vec = V
+            self.eig_val = S / S.min()
+            logger.info(
+                f"SelectiveCollapser[topk_dims]: {k} dims, "
+                f"var range [{S.min():.2f}, {S.max():.2f}], "
+                f"dynamic range {S.max()/S.min():.0f}x"
+            )
+
+        elif self.pca_source == "power_iter":
+            # Approximate PCA via randomized power iteration
+            # Much cheaper than full SVD: O(D*k*iters) vs O(D^2*k)
+            k = self.max_pcs
+            n_iters = int(self.boost_beta) if self.boost_beta > 0 else 3
+            # Randomized SVD with power iteration for better approximation
+            Q = pt.randn(D, k, device=Sigma_f.device)
+            for _ in range(n_iters):
+                Q = Sigma_f @ Q  # power iteration
+                Q, _ = pt.linalg.qr(Q)  # re-orthogonalize
+            # Project covariance onto this subspace
+            B = Q.T @ Sigma_f @ Q
+            B = (B + B.T) / 2
+            eigvals, eigvecs = pt.linalg.eigh(B)
+            # Sort descending
+            idx = eigvals.argsort(descending=True)
+            eigvals = eigvals[idx].clamp(min=self.reg_eps)
+            eigvecs = eigvecs[:, idx]
+            V = Q @ eigvecs  # back to D-dim space
+            self.eig_vec = V
+            self.eig_val = eigvals / eigvals.min()
+            logger.info(
+                f"SelectiveCollapser[power_iter n={n_iters}]: {k} dirs, "
+                f"eig range [{eigvals.min():.2f}, {eigvals.max():.2f}], "
+                f"dynamic range {eigvals.max()/eigvals.min():.0f}x"
+            )
+
         elif self.pca_source == "diagonal":
             # Diagonal Mahalanobis: per-dimension forget variance, no eigenvectors
             # Use standard basis (top max_pcs dims by variance)
