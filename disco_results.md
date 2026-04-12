@@ -111,8 +111,9 @@ All with KL+LoRA, MLP+attn, activation-only.
 | PCA eigenvalue (baseline) | **0.028** (ep8) | 0.077 (ep10) | PCA + Mahalanobis | attacker subspace |
 | Contrastive PCA α=0.5 | 0.035 (ep5) | **0.070** (ep9) | PCA on (Σ_f-αΣ_r) + Mahalanobis | shared-not-harmful |
 | Whitening `(a-μ)/σ` | 0.042 (ep7) | running... | 2 lines, no PCA | equalize variance |
-| Steering vector removal | running... | next | 1 direction | steering alignment |
 | Diagonal Mahalanobis | 0.069 (ep3) | — | basis + Mahalanobis | per-dim variance |
+| Steering vector removal | BROKEN ep2 | — | 1 direction | steering alignment |
+| Variance clipping (k=2) | BROKEN ep2 | — | per-dim clamp | cap extremes |
 | DISCO gen. eigenvectors | BROKEN | — | whitened SVD | selectivity |
 
 ### Key finding
