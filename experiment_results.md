@@ -80,9 +80,23 @@ All with KL+LoRA, MLP+attn, activation-only.
 7. **Cyber easier than Bio**: Llama 0.014 vs 0.028, Qwen 0.035 vs 0.075
 8. **Qwen more stable than Llama**: rarely breaks, converges slower
 
-## Next: Concentration without PCA
+## 5. Concentration Alternatives (cheap basis + Mahalanobis projection)
 
-The diagnostic shows we need a **cheap basis** that concentrates the update without eigenvector computation. Candidates:
-- Random projection + whitening (random basis, k=400)
-- Top-k dimension projection (sparse basis)
-- Power iteration (approximate PCA, 3-5 iterations)
+All with KL+LoRA, MLP+attn, activation-only.
+
+| Method | Directions | Llama Bio | Qwen Bio | Llama Cyber | Qwen Cyber |
+|--------|-----------|-----------|----------|-------------|------------|
+| **Power iter (3)** | ~PCA (3 mat-muls) | **0.020** (ep8) | 0.082 (ep10) | **0.012** (ep8) | 0.040 (ep10) |
+| Power iter (5) | ~PCA (5 mat-muls) | — | 0.081 (ep10) | — | — |
+| PCA eigenvalue | PCA (full SVD) | 0.028 (ep8) | **0.077** (ep10) | 0.014 (ep6) | **0.035** (ep9) |
+| Contrastive PCA | PCA on Σ_f−αΣ_r | 0.035 (ep5) | **0.070** (ep9) | — | — |
+| Top-k dims | top-k coordinate | 0.069 (ep3) | — | — | — |
+| Random proj | random orthogonal | BROKEN ep2 | BROKEN ep2 | — | — |
+
+### Key findings
+
+1. **Power iteration beats PCA on Llama** (0.020 vs 0.028 bio, 0.012 vs 0.014 cyber) — amplified eigenvalue separation from power iteration gives stronger suppression
+2. **Power iteration ≈ PCA on Qwen** (0.082 vs 0.077 bio, 0.040 vs 0.035 cyber) — randomized initialization slightly less tight on larger model
+3. **Random directions = catastrophic** — concentration alone without good directions breaks the model
+4. **Top-k coordinate axes = weak** (0.069) — coordinate axes don't capture cross-dimensional structure
+5. **Both good directions AND concentration are essential** — PCA provides both, power iteration approximates both cheaply
