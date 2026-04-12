@@ -88,13 +88,38 @@ class SelectiveCollapser:
         Sigma_r = (Sigma_r + Sigma_r.T) / 2
         D = Sigma_f.shape[0]
 
-        if self.pca_source == "whiten":
-            # Per-dimension whitening: store mean and std
+        if self.pca_source in ("whiten", "whiten_power", "whiten_contrastive", "whiten_ratio"):
             self.mean = self.forget_cov.mean.to(pt.float32)
-            self.std = Sigma_f.diagonal().clamp(min=self.reg_eps).sqrt()
+            sigma_f = Sigma_f.diagonal().clamp(min=self.reg_eps).sqrt()
+            sigma_r = Sigma_r.diagonal().clamp(min=self.reg_eps).sqrt()
+
+            if self.pca_source == "whiten":
+                # Standard: w_i = 1/σ_f
+                self.weights = 1.0 / sigma_f
+                label = "standard"
+            elif self.pca_source == "whiten_power":
+                # Power: w_i = 1/σ_f^β (β>1 sharpens suppression)
+                beta = self.boost_beta if self.boost_beta > 0 else 2.0
+                self.weights = 1.0 / sigma_f.pow(beta)
+                label = f"power β={beta}"
+            elif self.pca_source == "whiten_contrastive":
+                # Contrastive: w_i = 1/max(σ_f - α·σ_r, ε)
+                alpha = self.contrastive_alpha
+                excess = (sigma_f - alpha * sigma_r).clamp(min=self.reg_eps)
+                self.weights = 1.0 / excess
+                label = f"contrastive α={alpha}"
+            elif self.pca_source == "whiten_ratio":
+                # Ratio: w_i = σ_r / σ_f (suppress where forget >> retain)
+                self.weights = sigma_r / sigma_f
+                label = "ratio"
+
+            # Normalize weights so mean = 1 (preserve overall activation scale)
+            self.weights = self.weights / self.weights.mean()
+            dyn = self.weights.max() / self.weights.min()
             logger.info(
-                f"SelectiveCollapser[whiten]: D={D}, "
-                f"std range [{self.std.min():.2f}, {self.std.max():.2f}]"
+                f"SelectiveCollapser[whiten_{label}]: D={D}, "
+                f"weight range [{self.weights.min():.3f}, {self.weights.max():.3f}], "
+                f"dynamic range {dyn:.0f}x"
             )
             self._reset_vecs()
             return
@@ -273,9 +298,9 @@ class SelectiveCollapser:
             )
 
     def collapse(self, vecs):
-        if self.pca_source == "whiten":
-            # Per-dimension whitening: (a - μ) / σ
-            return ((vecs - self.mean) / self.std).to(vecs.dtype)
+        if self.pca_source.startswith("whiten"):
+            # Per-dimension weighted whitening: (a - μ) * w_i
+            return ((vecs - self.mean) * self.weights).to(vecs.dtype)
         elif self.pca_source == "steer":
             # Remove steering vector direction: a - (a·d̂)d̂
             centered = vecs - self.mean
