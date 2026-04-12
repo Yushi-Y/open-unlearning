@@ -41,6 +41,9 @@ class SelectiveCollapse(UnlearnTrainer):
         pca_source = cfg.get("pca_source", "forget")
         contrastive_alpha = cfg.get("contrastive_alpha", 0.5)
         boost_beta = cfg.get("boost_beta", 0.0)
+        collapse_rule = cfg.get("collapse_rule", "mahal")
+        cr_args = (max_pcs, threshold, reg_eps, pca_source,
+                   contrastive_alpha, boost_beta, collapse_rule)
 
         collapse_attn = cfg.get("collapse_attn", False)
 
@@ -52,8 +55,8 @@ class SelectiveCollapse(UnlearnTrainer):
 
             # MLP modules
             mlp = layer.mlp
-            shared_collapser = SelectiveCollapser(max_pcs, threshold, reg_eps, pca_source, contrastive_alpha, boost_beta)
-            down_collapser = SelectiveCollapser(max_pcs, threshold, reg_eps, pca_source, contrastive_alpha, boost_beta)
+            shared_collapser = SelectiveCollapser(*cr_args)
+            down_collapser = SelectiveCollapser(*cr_args)
             for module in [mlp.gate_proj, mlp.up_proj, mlp.down_proj]:
                 module.weight.requires_grad = True
                 self.base_trainable_params.append(module.weight)
@@ -73,13 +76,15 @@ class SelectiveCollapse(UnlearnTrainer):
                     ).to(self.model.device, dtype=self.model.dtype)
                     self.lora_params.extend(module.lora_module.parameters())
                     module.register_forward_hook(self.lora_forward_hook)
+                if "noise_std" in cfg:
+                    module.register_forward_hook(self.noise_forward_hook)
 
             # Attention modules (optional)
             if collapse_attn:
                 attn = layer.self_attn
                 # q/k/v share input space, o_proj has different input
-                qkv_collapser = SelectiveCollapser(max_pcs, threshold, reg_eps, pca_source, contrastive_alpha, boost_beta)
-                o_collapser = SelectiveCollapser(max_pcs, threshold, reg_eps, pca_source, contrastive_alpha, boost_beta)
+                qkv_collapser = SelectiveCollapser(*cr_args)
+                o_collapser = SelectiveCollapser(*cr_args)
                 for module in [attn.q_proj, attn.k_proj, attn.v_proj, attn.o_proj]:
                     module.weight.requires_grad = True
                     self.base_trainable_params.append(module.weight)
@@ -90,6 +95,9 @@ class SelectiveCollapse(UnlearnTrainer):
                         module.act_collapser = o_collapser
                     else:
                         module.act_collapser = qkv_collapser
+
+                    if "noise_std" in cfg:
+                        module.register_forward_hook(self.noise_forward_hook)
 
         # KL masking: pre-cache retain batches
         self.kl_computor = None
@@ -202,6 +210,10 @@ class SelectiveCollapse(UnlearnTrainer):
         if self.batch_idx < self.recalc_every:
             return  # too early, only collect activations
 
+        # Save raw activations (pre-collapse) for token-level filters that need
+        # the original (centered) activation, not the post-collapse version.
+        raw_acts = acts
+
         # Activation-only collapse (no gradient collapse)
         acts = module.act_collapser.collapse(acts)
 
@@ -214,8 +226,58 @@ class SelectiveCollapse(UnlearnTrainer):
             acts = acts[kl_mask]
             grads = grads[kl_mask]
 
+        # Novel token filters (§8): retain-shape-based rejection, no retain grads.
+        token_filter = self.cfg.get("token_filter", None)
+        if token_filter is not None:
+            collapser = module.act_collapser
+            tau = self.cfg.get("token_filter_tau", 0.5)
+            mu = collapser.mean.to(raw_acts.dtype)
+            centered = raw_acts - mu
+            denom = (centered * centered).sum(dim=1).clamp(min=1e-8)
+
+            if token_filter == "retain_conf":
+                # A: skip token if most of its centered activation lives in V_r.
+                V_r = collapser.V_r.to(raw_acts.dtype)
+                proj = centered @ V_r  # (t, k_r)
+                num = (proj * proj).sum(dim=1)
+                r_t = num / denom
+                keep = r_t <= tau
+            elif token_filter == "forget_conf":
+                # B: keep token only if centered activation is mostly in V.
+                V = collapser.eig_vec.to(raw_acts.dtype)
+                proj = centered @ V
+                num = (proj * proj).sum(dim=1)
+                f_t = num / denom
+                keep = f_t >= tau
+            elif token_filter == "retain_cov_reject":
+                # C: reject tokens whose rank-1 update has large retain-cov mass.
+                V_r = collapser.V_r.to(raw_acts.dtype)
+                sig2 = collapser.retain_var_r.to(raw_acts.dtype)  # (k_r,)
+                proj = centered @ V_r  # (t, k_r)
+                quad = ((proj * proj) * sig2).sum(dim=1)  # (t,) = a^T P_r a
+                gnorm = grads.norm(dim=1)
+                delta = gnorm * quad
+                # tau here is the top-fraction to reject (default 0.5 → reject top 50%)
+                frac_reject = tau
+                t = delta.numel()
+                n_keep = max(1, int((1.0 - frac_reject) * t))
+                _, idx = pt.topk(delta, n_keep, largest=False)
+                keep = pt.zeros_like(delta, dtype=pt.bool)
+                keep[idx] = True
+            else:
+                raise ValueError(f"unknown token_filter {token_filter}")
+
+            acts = acts[keep]
+            grads = grads[keep]
+
         module.weight.grad = pt.einsum("ti,tj->ij", grads, acts)
 
     def lora_forward_hook(self, module, args, output):
         if self.use_hooks:
             return output + module.lora_module(args[0])
+
+    def noise_forward_hook(self, module, args, output):
+        # Parameter-free adversary: inject Gaussian noise scaled by per-layer std.
+        if self.use_hooks:
+            noise_std = self.cfg.get("noise_std", 0.1)
+            return output + pt.randn_like(output) * noise_std * output.std()

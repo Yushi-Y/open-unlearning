@@ -54,13 +54,15 @@ class SelectiveCollapser:
 
     def __init__(self, max_pcs: int = 400, selectivity_threshold: float = 1.5,
                  reg_eps: float = 1e-4, pca_source: str = "forget",
-                 contrastive_alpha: float = 0.5, boost_beta: float = 0.0):
+                 contrastive_alpha: float = 0.5, boost_beta: float = 0.0,
+                 collapse_rule: str = "mahal"):
         self.max_pcs = max_pcs
         self.selectivity_threshold = selectivity_threshold
         self.reg_eps = reg_eps
         self.pca_source = pca_source
         self.contrastive_alpha = contrastive_alpha
         self.boost_beta = boost_beta
+        self.collapse_rule = collapse_rule  # mahal | hard_proj | retain_orth_proj
         self._reset_vecs()
 
     def _reset_vecs(self):
@@ -184,18 +186,85 @@ class SelectiveCollapser:
                 f"dynamic range {S.max()/S.min():.0f}x"
             )
 
-        elif self.pca_source == "power_iter":
+        elif self.pca_source in ("power_iter", "contrastive_power_iter",
+                                    "contrastive_power_iter_matched",
+                                    "retain_deflated_power_iter",
+                                    "retain_ortho_power_iter",
+                                    "soft_retain_ortho_power_iter"):
             # Approximate PCA via randomized power iteration
             # Much cheaper than full SVD: O(D*k*iters) vs O(D^2*k)
             k = self.max_pcs
             n_iters = int(self.boost_beta) if self.boost_beta > 0 else 3
-            # Randomized SVD with power iteration for better approximation
-            Q = pt.randn(D, k, device=Sigma_f.device)
-            for _ in range(n_iters):
-                Q = Sigma_f @ Q  # power iteration
-                Q, _ = pt.linalg.qr(Q)  # re-orthogonalize
-            # Project covariance onto this subspace
-            B = Q.T @ Sigma_f @ Q
+            # Default: use Sigma_f for eigenvalues. Overridden by "_matched" variants.
+            eig_matrix = Sigma_f
+
+            if self.pca_source in ("contrastive_power_iter", "contrastive_power_iter_matched"):
+                # Iterate on (Sigma_f - α·Sigma_r) to amplify forget-specific variance
+                alpha = self.contrastive_alpha
+                M = Sigma_f - alpha * Sigma_r
+                M = (M + M.T) / 2
+                label = f"{self.pca_source} α={alpha} n={n_iters}"
+                Q = pt.randn(D, k, device=Sigma_f.device)
+                for _ in range(n_iters):
+                    Q = M @ Q
+                    Q, _ = pt.linalg.qr(Q)
+                # Also compute retain subspace V_r for token-level filtering
+                # (used by §8 candidate filters A/C; free to compute here).
+                k_r = min(100, D)
+                V_r = pt.randn(D, k_r, device=Sigma_f.device)
+                for _ in range(n_iters):
+                    V_r = Sigma_r @ V_r
+                    V_r, _ = pt.linalg.qr(V_r)
+                self.V_r = V_r
+                # Retain variance along each V_r direction (for candidate C).
+                self.retain_var_r = (V_r.T @ Sigma_r @ V_r).diagonal().clamp(min=self.reg_eps)
+                # "_matched" variant uses the contrastive covariance for eigenvalues too
+                if self.pca_source == "contrastive_power_iter_matched":
+                    eig_matrix = M
+
+            elif self.pca_source == "retain_deflated_power_iter":
+                # Two-round power iter: find retain dirs, deflate, then find forget dirs
+                k_r = min(100, D)
+                V_r = pt.randn(D, k_r, device=Sigma_f.device)
+                for _ in range(n_iters):
+                    V_r = Sigma_r @ V_r
+                    V_r, _ = pt.linalg.qr(V_r)
+                # Deflate: remove retain component from forget covariance
+                proj_r = V_r @ V_r.T  # (D, D) retain projector
+                Sigma_f_deflated = Sigma_f - proj_r @ Sigma_f @ proj_r
+                Sigma_f_deflated = (Sigma_f_deflated + Sigma_f_deflated.T) / 2
+                Q = pt.randn(D, k, device=Sigma_f.device)
+                for _ in range(n_iters):
+                    Q = Sigma_f_deflated @ Q
+                    Q, _ = pt.linalg.qr(Q)
+                label = f"retain_deflated_power_iter k_r={k_r} n={n_iters}"
+
+            elif self.pca_source in ("retain_ortho_power_iter", "soft_retain_ortho_power_iter"):
+                # Power iter on Sigma_f with (possibly softened) retain projection per step.
+                # gamma=1 is hard retain-ortho; gamma<1 is a blended soft version.
+                gamma = self.contrastive_alpha if self.pca_source == "soft_retain_ortho_power_iter" else 1.0
+                k_r = min(100, D)
+                V_r = pt.randn(D, k_r, device=Sigma_f.device)
+                for _ in range(n_iters):
+                    V_r = Sigma_r @ V_r
+                    V_r, _ = pt.linalg.qr(V_r)
+                Q = pt.randn(D, k, device=Sigma_f.device)
+                for _ in range(n_iters):
+                    Q = Sigma_f @ Q
+                    Q = Q - gamma * V_r @ (V_r.T @ Q)  # soft project out retain
+                    Q, _ = pt.linalg.qr(Q)
+                label = f"{self.pca_source} γ={gamma} k_r={k_r} n={n_iters}"
+
+            else:
+                # Standard power iteration on Sigma_f
+                label = f"power_iter n={n_iters}"
+                Q = pt.randn(D, k, device=Sigma_f.device)
+                for _ in range(n_iters):
+                    Q = Sigma_f @ Q
+                    Q, _ = pt.linalg.qr(Q)
+
+            # Project chosen covariance onto this subspace to get eigenvalues
+            B = Q.T @ eig_matrix @ Q
             B = (B + B.T) / 2
             eigvals, eigvecs = pt.linalg.eigh(B)
             # Sort descending
@@ -205,10 +274,50 @@ class SelectiveCollapser:
             V = Q @ eigvecs  # back to D-dim space
             self.eig_vec = V
             self.eig_val = eigvals / eigvals.min()
+
+            # For retain_ortho collapse rule: compute top-k_r retain directions
+            # via power iter on Sigma_r (reuse existing retain PCs if computed above).
+            if self.collapse_rule == "retain_ortho":
+                k_r = min(100, D)
+                if 'V_r' not in dir() or V_r.shape[1] != k_r:
+                    V_r_local = pt.randn(D, k_r, device=Sigma_r.device)
+                    for _ in range(n_iters):
+                        V_r_local = Sigma_r @ V_r_local
+                        V_r_local, _ = pt.linalg.qr(V_r_local)
+                    self.V_r = V_r_local
+                else:
+                    self.V_r = V_r
             logger.info(
-                f"SelectiveCollapser[power_iter n={n_iters}]: {k} dirs, "
+                f"SelectiveCollapser[{label}]: {k} dirs, "
                 f"eig range [{eigvals.min():.2f}, {eigvals.max():.2f}], "
                 f"dynamic range {eigvals.max()/eigvals.min():.0f}x"
+            )
+
+        elif self.pca_source == "retain_proj_closed_form":
+            # First-principles closed-form retain-orthogonal projection.
+            # No PCA, no power iteration — only matrix inverse + QR.
+            # Step 1: Tikhonov-regularized retain projector
+            #   P_r ≈ Sigma_r (Sigma_r + eps I)^{-1}  (one linear solve)
+            #   P_r^perp = I - P_r
+            # Step 2: restrict forget covariance to retain-orthogonal subspace
+            # Step 3: single-shot random sketch (NOT power iter) → orthonormal basis
+            eps = self.contrastive_alpha if self.contrastive_alpha > 0 else 1e-2
+            I_D = pt.eye(D, device=Sigma_r.device, dtype=Sigma_f.dtype)
+            P_r = Sigma_r @ pt.linalg.solve(Sigma_r + eps * I_D, I_D)
+            P_r_perp = I_D - P_r
+            Sigma_f_orth = P_r_perp @ Sigma_f @ P_r_perp
+            Sigma_f_orth = (Sigma_f_orth + Sigma_f_orth.T) / 2
+            k = self.max_pcs
+            Omega = pt.randn(D, k, device=Sigma_f.device, dtype=Sigma_f.dtype)
+            Y = Sigma_f_orth @ Omega  # one matmul, no iteration
+            Q, _ = pt.linalg.qr(Y)
+            S = (Q.T @ Sigma_f_orth @ Q).diagonal().clamp(min=self.reg_eps)
+            self.eig_vec = Q
+            self.eig_val = S / S.min()
+            logger.info(
+                f"SelectiveCollapser[retain_proj_closed_form eps={eps}]: {k} dirs, "
+                f"var range [{S.min():.2f}, {S.max():.2f}], "
+                f"dynamic range {S.max()/S.min():.0f}x"
             )
 
         elif self.pca_source == "diagonal":
@@ -370,5 +479,23 @@ class SelectiveCollapser:
             return vecs.clamp(min=self.clip_lo, max=self.clip_hi).to(vecs.dtype)
         else:
             centered = vecs - self.mean
+            if self.collapse_rule == "hard_proj":
+                # No eigenvalues: project centered onto top-k forget subspace.
+                # acts_new = centered V V^T — rank-k update along pure directions.
+                V = self.eig_vec
+                return (centered @ V @ V.T).to(vecs.dtype)
+            if self.collapse_rule == "complement_proj":
+                # Hard form of Mahalanobis: remove forget subspace entirely.
+                # acts_new = centered (I - V V^T) — kill forget directions.
+                V = self.eig_vec
+                return (centered - centered @ V @ V.T).to(vecs.dtype)
+            if self.collapse_rule == "retain_ortho":
+                # Complement projection + retain-ortho projection.
+                # Zeros out both forget-specific and retain-dominant directions.
+                V = self.eig_vec
+                Vr = self.V_r
+                x = centered - centered @ V @ V.T
+                x = x - x @ Vr @ Vr.T
+                return x.to(vecs.dtype)
             mahal_dirs = _get_mahal_dirs(centered, self.eig_val, self.eig_vec)
             return _proj_to_mahal_dirs(centered, mahal_dirs).to(vecs.dtype)
