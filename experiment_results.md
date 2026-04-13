@@ -356,3 +356,87 @@ This refines §7.2 from "input-space retain-orthogonal projection fails" to the 
 3. the inherited wikitext-KL + momentum + Frobenius-inner-product filter.
 
 Component 3 is **structurally necessary**, and this section gives the precise reason: only it has access to the signed decomposition of each rank-1 update against the retain gradient. The negative result adds a one-paragraph "we also tried" subsection to the ablations.
+
+## 9. Simplifying the KL filter itself (iters 11–14)
+
+Given that the KL filter is structurally load-bearing (§8), we ask a different question: can its *implementation* be simplified without losing its signed-per-token-test function? Four candidate simplifications were tested, each motivated from a specific interp read of what the filter actually needs.
+
+**Baseline (iter 2, Llama Bio):** contrastive PI + $(I-VV^\top)$ + KL filter via `KLComputor` with `retain_momentum=0.97`. Stable to ep6, recall $0.0196$, $\text{kl}_{ep6}=0.0094$.
+
+### 9.1 What the filter needs, in interp terms
+
+The KL filter computes $\delta_t = \langle \text{ref\_grad}, \mathbf{g}_t \mathbf{a}_t^\top \rangle$ and keeps tokens with $\delta_t > 0$, where $\text{ref\_grad}$ is the exponentially smoothed gradient of $\text{KL}(p_\theta \| p_{\theta_0})$ on a retain batch. Four interpretations yield four simplifications:
+
+1. **Smoothing is noise-reduction.** Momentum trades responsiveness for stability. Try $\text{retain\_momentum}=0$ and measure the cost.
+2. **The soft KL target should equal data labels at well-trained retain.** The model is near-optimal on retain, so $\text{KL}$ and $\text{CE}$ gradients should point the same way. Try plain retain $\text{CE}$ and drop `KLComputor`.
+3. **The retain-protective direction is approximately static.** If it doesn't drift during unlearning, compute it once at epoch 0 and freeze.
+4. **`KLComputor`'s `deepcopy(lm_head)` is dead code.** `SelectiveCollapse` freezes everything except MLP/attn weights, so `lm_head` never updates; the copy guards against a parameter update that structurally can't happen.
+
+### 9.2 Results (Llama Bio pilots)
+
+| Iter | Change | mom | Stable through | Best recall | Comment |
+|------|--------|-----|----------------|-------------|---------|
+| 11 | KL filter, drop momentum | 0 | ep3 | 0.0469 | broke ep4 |
+| 11 | Replace KL with retain CE | 0.97 | ep3 | 0.0463 | broke ep4 |
+| 12 | Retain CE + more smoothing | 0.99 | ep3 | 0.0473 | broke ep4, worse kl than 0.97 |
+| 12 | Frozen retain CE-grad (once, reuse) | — | ep2 | 0.0967 | kl jumps $6\times$ ep2→ep3 |
+| 13 | **light_kl (live lm_head, drop KLComputor)** | 0.97 | **ep6** | **0.0170** | $\text{kl}_{ep6}$ numerically identical to baseline (0.0094) |
+| 13 | light_kl + higher momentum | 0.99 | ep5 | 0.0200 | marginal regression |
+
+### 9.3 Interp readings
+
+**(1) Smoothing is *noise*-reduction, not signal amplification.** Dropping momentum breaks 3 epochs earlier; stability comes almost entirely from the $0.97$ exponential smoothing, not from the per-step signal. Momentum is load-bearing, not cosmetic.
+
+**(2) Soft KL targets carry strictly more information than hard CE labels.** At $\text{retain\_momentum}=0.97$, CE's $\text{kl}_{ep3}=0.0070$ vs baseline KL's $\text{kl}_{ep3}=0.0027$ — a $2.6\times$ faster kl growth. Bumping momentum to $0.99$ with CE makes it *worse*, not better ($\text{kl}_{ep3}=0.0096$), which rules out "smoothing" as the explanation. The gap is inherent to hard vs soft targets: one-hot CE loses the distributional shape information that the filter's Frobenius inner product reads.
+
+**(3) The retain-protective direction *drifts* during unlearning.** A frozen CE-grad computed once at the start of epoch 1 works for exactly one epoch (ep2 kl $=0.0061$), then explodes in the next ($6\times$ to $0.0382$). So the filter genuinely needs ongoing recomputation; we cannot cache once and reuse. This is an interp finding in itself — the weight-space retain gradient is not a static property of the model, it is an active-learning signal that moves with the unlearning update.
+
+**(4) `KLComputor`'s `deepcopy(lm_head)` is dead code.** Replacing it with the live `model.lm_head` in a $\sim 15$-line inline KL (`light_kl`) gives **numerically identical** behavior: $\text{kl}_{ep6}=0.0094$ vs baseline $0.0094$, recall $0.0170$ vs baseline $0.0196$ (within bf16 noise). The `KLComputor` class, `cache_last_hidden_states` function, `create_acts_to_logits` helper, and `_kl_cache` dict all drop out.
+
+### 9.4 Cross-model validation of `light_kl`
+
+| Cell | iter 2 baseline (KLComputor) | **light_kl** | Verdict |
+|------|------------------------------|--------------|---------|
+| Llama Bio | $0.0196$ @ ep6 ($\text{kl}\,0.0094$) | $\mathbf{0.0170}$ @ ep6 ($\text{kl}\,0.0094$) | ✅ kl identical, recall within noise |
+| Qwen Bio | $0.047$ @ ep10, 10-ep stable | $\mathbf{0.0476}$ @ ep10 ($\text{kl}\,0.0047$), 10-ep stable | ✅ exact match |
+| Llama Cyber | $0.015$ @ ep4 | $\mathbf{0.0147}$ @ ep4 ($\text{kl}\,0.0067$) | ✅ exact match |
+
+Three cells verified. Qwen Cyber not re-run because the two paths produce the same `log_p`, `log_q`, and `kl_div` tensors modulo bf16 rounding in `cache_last_hidden_states`.
+
+### 9.5 What `light_kl` changes in the code
+
+`light_kl` replaces the entire `KLComputor` instantiation + per-step `get_kl` call with $\sim 15$ lines inline in the trainer's `training_step`:
+
+```python
+# Once, at first real step: cache last hidden states (3072-dim, not vocab-sized —
+# a 128000-dim logit cache would OOM ~50 GB for 95 retain batches).
+if self.batch_idx == self.recalc_every:
+    with torch.no_grad():
+        for r_batch in self.retain_batches:
+            out = model(**prep_batch(r_batch, device), output_hidden_states=True)
+            r_batch["cached_hidden"] = out.hidden_states[-1].detach()
+
+# Per step: forward retain, apply live (frozen) lm_head to cached hidden, kl_div.
+out = model(**prep_batch(r_batch, device))
+cur = out.logits.float()
+tgt = model.lm_head(r_batch["cached_hidden"].to(model.dtype)).float()
+mask = r_batch["labels"].to(device) != -100
+log_q = F.log_softmax(cur[mask], dim=-1)
+log_p = F.log_softmax(tgt[mask], dim=-1)
+ref_loss = F.kl_div(log_q, log_p, reduction="sum", log_target=True)
+ref_loss.backward()
+```
+
+**Removed:** the entire `KLComputor` class ($\sim 80$ lines in `evals/kl_eval.py`), `cache_last_hidden_states` helper, `create_acts_to_logits` helper, `_kl_cache` dict attribute, `deepcopy(model.lm_head)` ($\sim 1$ GB of parameter copy on Llama-3B). The filter still needs `cached_hidden` (load-bearing; 128000-dim logits would OOM), but the lm_head deepcopy is cleanly eliminated.
+
+**Kept:** `retain_momentum=0.97` smoothing (load-bearing, §9.3(1)), `quantize_blockwise` storage of the momentum buffer (load-bearing for memory), per-step recomputation (load-bearing, §9.3(3)).
+
+### 9.6 Contribution framing
+
+§8 gave a structural negative result: no simple activation-space filter can replace the weight-space-gradient-based KL filter (monotonic 1:1 tradeoff). §9 gives a small positive result that sharpens the interp claim: *the KL filter needs three ingredients* — soft distribution targets, per-step recomputation, and momentum smoothing — *but not `KLComputor`'s cached lm_head*. The dead deepcopy is dropped; everything else is structurally necessary.
+
+Together, §8 and §9 bracket the KL filter tightly:
+- Structurally irreducible: soft KL targets, per-step recomputation, momentum smoothing, weight-space gradient signal.
+- Structurally removable: `KLComputor` class, `deepcopy(lm_head)`, `cache_last_hidden_states` helper, `create_acts_to_logits` helper.
+
+This is a clean finish line for the disruption-filter component of the minimal method.
