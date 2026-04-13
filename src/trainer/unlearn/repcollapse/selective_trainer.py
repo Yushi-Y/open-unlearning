@@ -133,8 +133,28 @@ class SelectiveCollapse(UnlearnTrainer):
                 model(**prep_batch(r_batch, self.model.device))
             self.recording_retain = False
 
+        # Frozen retain grad (interp simplification): compute ref_grad ONCE at the
+        # first real training step from the average over all retain batches, then
+        # reuse forever. No momentum, no per-step recomputation, no KLComputor.
+        frozen_retain = self.cfg.get("frozen_retain_grad", False)
+        if (frozen_retain and "retain_momentum" in self.cfg
+                and self.batch_idx == self.recalc_every):
+            for param in self.base_trainable_params:
+                param.ref_grad_frozen = pt.zeros_like(param)
+            for r_batch in self.retain_batches:
+                model.zero_grad(set_to_none=True)
+                ref_loss = model(**prep_batch(r_batch, self.model.device)).loss
+                ref_loss.backward()
+                for param in self.base_trainable_params:
+                    if param.grad is not None:
+                        param.ref_grad_frozen += param.grad.detach() / len(self.retain_batches)
+            for param in self.base_trainable_params:
+                param.ref_grad = quantize_blockwise(param.ref_grad_frozen)
+                del param.ref_grad_frozen
+
         # KL masking: compute retain reference gradient (KL or plain CE).
-        if "retain_momentum" in self.cfg and self.batch_idx >= self.recalc_every:
+        if ("retain_momentum" in self.cfg and self.batch_idx >= self.recalc_every
+                and not frozen_retain):
             r_batch = random.choice(self.retain_batches)
             model.zero_grad(set_to_none=True)
             if retain_grad_source == "ce":
