@@ -264,6 +264,20 @@ class SelectiveCollapse(UnlearnTrainer):
                 _, idx = pt.topk(delta, n_keep, largest=False)
                 keep = pt.zeros_like(delta, dtype=pt.bool)
                 keep[idx] = True
+            elif token_filter == "soft_C":
+                # Soft reweighting variant of C: instead of hard rejection, multiply
+                # each token's grad contribution by w_t = 1 / (1 + delta_t / median(delta)).
+                # High-delta (retain-risky) tokens are attenuated, not removed.
+                V_r = collapser.V_r.to(raw_acts.dtype)
+                sig2 = collapser.retain_var_r.to(raw_acts.dtype)
+                proj = centered @ V_r
+                quad = ((proj * proj) * sig2).sum(dim=1)
+                gnorm = grads.norm(dim=1)
+                delta = gnorm * quad
+                med = delta.median().clamp(min=1e-8)
+                w = 1.0 / (1.0 + delta / med)
+                grads = grads * w.unsqueeze(1).to(grads.dtype)
+                keep = pt.ones_like(delta, dtype=pt.bool)
             elif token_filter == "hybrid_AC":
                 # A ∪ C: reject if A rejects (r_t > tau_A) OR if C rejects
                 # (top frac_C of gnorm*quad). Two independent criteria combined.
