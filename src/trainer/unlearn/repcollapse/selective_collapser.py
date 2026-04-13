@@ -68,8 +68,10 @@ class SelectiveCollapser:
     def _reset_vecs(self):
         self.forget_cov = OnlineCovariance(dtype=pt.bfloat16)
         self.retain_cov = OnlineCovariance(dtype=pt.bfloat16)
+        self.retain_out_cov = OnlineCovariance(dtype=pt.bfloat16)
         self._has_forget_data = False
         self._has_retain_data = False
+        self._has_retain_out_data = False
 
     def add_forget_vecs(self, vecs):
         self.forget_cov.add_vecs(vecs)
@@ -78,6 +80,10 @@ class SelectiveCollapser:
     def add_retain_vecs(self, vecs):
         self.retain_cov.add_vecs(vecs)
         self._has_retain_data = True
+
+    def add_retain_out_vecs(self, vecs):
+        self.retain_out_cov.add_vecs(vecs)
+        self._has_retain_out_data = True
 
     def process_saved_vecs(self):
         if not self._has_forget_data or not self._has_retain_data:
@@ -218,6 +224,18 @@ class SelectiveCollapser:
                 self.V_r = V_r
                 # Retain variance along each V_r direction (for candidate C).
                 self.retain_var_r = (V_r.T @ Sigma_r @ V_r).diagonal().clamp(min=self.reg_eps)
+                # Optional: retain OUTPUT subspace V_r_out (for two-sided retain proj).
+                # Computed from module-output covariance on retain data.
+                if self._has_retain_out_data:
+                    Sigma_r_out = self.retain_out_cov.get_cov().to(pt.float32)
+                    Sigma_r_out = (Sigma_r_out + Sigma_r_out.T) / 2
+                    D_out = Sigma_r_out.shape[0]
+                    k_r_out = min(100, D_out)
+                    V_r_out = pt.randn(D_out, k_r_out, device=Sigma_r_out.device)
+                    for _ in range(n_iters):
+                        V_r_out = Sigma_r_out @ V_r_out
+                        V_r_out, _ = pt.linalg.qr(V_r_out)
+                    self.V_r_out = V_r_out
                 # "_matched" variant uses the contrastive covariance for eigenvalues too
                 if self.pca_source == "contrastive_power_iter_matched":
                     eig_matrix = M

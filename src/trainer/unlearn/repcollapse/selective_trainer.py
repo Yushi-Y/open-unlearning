@@ -241,6 +241,10 @@ class SelectiveCollapse(UnlearnTrainer):
             retain_acts = args[0].detach()
             retain_acts = retain_acts[self.retain_token_mask]
             module.act_collapser.add_retain_vecs(retain_acts)
+            # Optional: also collect retain OUTPUTS for two-sided retain projection
+            if self.cfg.get("two_sided_retain_proj", False):
+                retain_outs = output.detach()[self.retain_token_mask]
+                module.act_collapser.add_retain_out_vecs(retain_outs)
             return
         if not self.use_hooks:
             return
@@ -268,6 +272,14 @@ class SelectiveCollapse(UnlearnTrainer):
 
         # Activation-only collapse (no gradient collapse)
         acts = module.act_collapser.collapse(acts)
+
+        # Two-sided retain projection (novel filter replacement): project the
+        # upstream gradient onto the retain-output null space, so the resulting
+        # rank-1 weight update cannot push the layer output into retain directions.
+        if (self.cfg.get("two_sided_retain_proj", False)
+                and hasattr(module.act_collapser, "V_r_out")):
+            V_r_out = module.act_collapser.V_r_out.to(grads.dtype)
+            grads = grads - (grads @ V_r_out) @ V_r_out.T
 
         # KL masking
         if "retain_momentum" in self.cfg:
