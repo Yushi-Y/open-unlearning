@@ -5,6 +5,7 @@ All activation-only with KL+LoRA (MLP+attn) unless noted. recall_prob at last no
 | Rank | Method | Llama Bio | Qwen Bio | Llama Cyber | Qwen Cyber | Cost |
 |------|--------|-----------|----------|-------------|------------|------|
 | **1** | **Contrastive PI + complement proj** (NEW, iter 2) | **0.0196** ⭐ | 0.047 | 0.015 | **0.023** ⭐ | 3 mat-muls, 2-line collapse |
+| **1a** | **+ light_kl filter simplification** (§9, iter 13-14) | **0.0170** | **0.0476** | **0.0147** | — | drops KLComputor + lm_head deepcopy; numerically identical to row 1 |
 | **2** | **Contrastive power iter** | 0.020 | **0.044** | **0.011** ⭐ | 0.036 | 3 mat-muls, Mahalanobis |
 | **3** | Power iter (n=3) | 0.020 | 0.082 | 0.012 | 0.040 | 3 mat-muls |
 | **3** | PCA eigenvalue | 0.028 | 0.077 | 0.014 | 0.035 ⭐ | full SVD |
