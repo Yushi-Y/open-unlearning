@@ -112,8 +112,10 @@ class SelectiveCollapse(UnlearnTrainer):
     def training_step(self, model, inputs, num_items_in_batch=None):
         model.train()
 
-        # Lazy init KLComputor
-        if self.kl_computor is None and "retain_momentum" in self.cfg:
+        # Lazy init KLComputor (only needed when retain_grad_source=kl, the default)
+        retain_grad_source = self.cfg.get("retain_grad_source", "kl")
+        if (self.kl_computor is None and "retain_momentum" in self.cfg
+                and retain_grad_source == "kl"):
             self.kl_computor = KLComputor(self.model, self.retain_batches)
 
         # Retain activation collection (epoch 0 only)
@@ -131,12 +133,17 @@ class SelectiveCollapse(UnlearnTrainer):
                 model(**prep_batch(r_batch, self.model.device))
             self.recording_retain = False
 
-        # KL masking: compute retain KL gradient
+        # KL masking: compute retain reference gradient (KL or plain CE).
         if "retain_momentum" in self.cfg and self.batch_idx >= self.recalc_every:
             r_batch = random.choice(self.retain_batches)
             model.zero_grad(set_to_none=True)
-            kl, _, _ = self.kl_computor.get_kl(r_batch)
-            kl.backward()
+            if retain_grad_source == "ce":
+                # Simplification #2: plain retain CE loss instead of KL(p||p_frozen).
+                # Removes the cached hidden states + cached lm_head machinery.
+                ref_loss = model(**prep_batch(r_batch, self.model.device)).loss
+            else:
+                ref_loss, _, _ = self.kl_computor.get_kl(r_batch)
+            ref_loss.backward()
             for param in self.base_trainable_params:
                 if hasattr(param, "ref_grad"):
                     ref = dequantize_blockwise(*param.ref_grad)
