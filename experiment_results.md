@@ -440,3 +440,19 @@ Together, §8 and §9 bracket the KL filter tightly:
 - Structurally removable: `KLComputor` class, `deepcopy(lm_head)`, `cache_last_hidden_states` helper, `create_acts_to_logits` helper.
 
 This is a clean finish line for the disruption-filter component of the minimal method.
+
+### 9.7 Can hyperparameter tuning close the gap? (iter 15)
+
+A natural follow-up: the ablations in §9.2 were run at default learning rate. Could a smaller LR slow the "stripped" variant down enough that it reaches baseline-level recall at matched kl budget? We ran the cleanest version of this: **keep only ingredient #1** (= CE + $\text{retain\_momentum}=0$ + per-step recomputation), swept at $\text{LR} \in \{0.1, 0.05\}$ (vs default $0.2$).
+
+| Config | Trajectory highlights | Recall at $\text{kl}\approx 0.009$ | Recall at $\text{kl}\approx 0.0024$ |
+|--------|----------------------|------------------------------------|-------------------------------------|
+| Baseline (all 4 ingredients) | ep6 recall $0.0196$, kl $0.0094$ | $\mathbf{0.0196}$ | ~ep2 |
+| Keep-only-#1 + $\text{LR}=0.1$ | ep5 recall $0.064$ kl $0.0045 \to$ ep6 broken $0.044$ kl $0.0255$ | $\sim 0.060$ (interp) | ~ep3 |
+| Keep-only-#1 + $\text{LR}=0.05$ | 10-epoch stable, ep10 recall $0.0886$ kl $0.0024$ | never reaches | $0.0886$ @ ep10 |
+
+**At matched kl $= 0.009$, keep-only-#1 is $\sim 3\times$ worse than baseline regardless of LR.** LR$=0.1$ slides to one point on the tradeoff curve (break ep6, recall $\sim 0.06$); LR$=0.05$ slides to the other extreme (never breaks, but never unlearns meaningfully — only 37% of the baseline's recall drop in 10 epochs). Neither matches baseline's recall at matched kl.
+
+The interpretation is the same as §8: learning rate slides *along* the Pareto curve, it does not *shift* it. The Pareto frontier is fixed by filter signal quality (what the filter "knows"), not by update magnitude. Losing #2 (soft KL) and #3 (momentum) simultaneously — as in keep-only-#1 — compounds the penalty from ~$1.8\times$ (drop #3 only, iter 11) to ~$3\times$. The three ingredients are structurally additive, not redundant.
+
+**This closes the loop on §8 + §9:** the KL filter requires soft distribution targets, per-step recomputation, momentum smoothing, and weight-space gradient access — and no hyperparameter tuning recovers a simpler variant to baseline efficiency.
