@@ -152,6 +152,15 @@ class SelectiveCollapse(UnlearnTrainer):
                 param.ref_grad = quantize_blockwise(param.ref_grad_frozen)
                 del param.ref_grad_frozen
 
+        # Light-KL: cache retain logits ONCE at first real step using the live
+        # (frozen) lm_head — no deepcopy, no acts_to_logits, no KLComputor class.
+        if (retain_grad_source == "light_kl" and "retain_momentum" in self.cfg
+                and self.batch_idx == self.recalc_every):
+            with pt.no_grad():
+                for r_batch in self.retain_batches:
+                    out = model(**prep_batch(r_batch, self.model.device))
+                    r_batch["cached_logits"] = out.logits.detach()
+
         # KL masking: compute retain reference gradient (KL or plain CE).
         if ("retain_momentum" in self.cfg and self.batch_idx >= self.recalc_every
                 and not frozen_retain):
@@ -161,6 +170,20 @@ class SelectiveCollapse(UnlearnTrainer):
                 # Simplification #2: plain retain CE loss instead of KL(p||p_frozen).
                 # Removes the cached hidden states + cached lm_head machinery.
                 ref_loss = model(**prep_batch(r_batch, self.model.device)).loss
+            elif retain_grad_source == "light_kl":
+                # Inline KL against cached retain logits. lm_head is frozen so we
+                # don't need a copy; cached logits replace cached_hidden+lm_head.
+                out = model(**prep_batch(r_batch, self.model.device))
+                cur = out.logits.float()
+                tgt = r_batch["cached_logits"].float()
+                labels = r_batch["labels"].to(model.device)
+                mask = labels != -100
+                cur_m = cur[mask]
+                tgt_m = tgt[mask]
+                log_q = pt.nn.functional.log_softmax(cur_m, dim=-1)
+                log_p = pt.nn.functional.log_softmax(tgt_m, dim=-1)
+                ref_loss = pt.nn.functional.kl_div(log_q, log_p,
+                                                    reduction="sum", log_target=True)
             else:
                 ref_loss, _, _ = self.kl_computor.get_kl(r_batch)
             ref_loss.backward()
