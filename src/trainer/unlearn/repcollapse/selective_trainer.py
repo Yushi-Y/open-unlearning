@@ -264,6 +264,28 @@ class SelectiveCollapse(UnlearnTrainer):
                 _, idx = pt.topk(delta, n_keep, largest=False)
                 keep = pt.zeros_like(delta, dtype=pt.bool)
                 keep[idx] = True
+            elif token_filter == "hybrid_AC":
+                # A ∪ C: reject if A rejects (r_t > tau_A) OR if C rejects
+                # (top frac_C of gnorm*quad). Two independent criteria combined.
+                tau_A = self.cfg.get("hybrid_tau_A", 0.3)
+                frac_C = self.cfg.get("hybrid_frac_C", 0.5)
+                V_r = collapser.V_r.to(raw_acts.dtype)
+                sig2 = collapser.retain_var_r.to(raw_acts.dtype)
+                proj = centered @ V_r
+                # A component
+                num = (proj * proj).sum(dim=1)
+                r_t = num / denom
+                keep_A = r_t <= tau_A
+                # C component
+                quad = ((proj * proj) * sig2).sum(dim=1)
+                gnorm = grads.norm(dim=1)
+                delta = gnorm * quad
+                t = delta.numel()
+                n_keep_C = max(1, int((1.0 - frac_C) * t))
+                _, idx = pt.topk(delta, n_keep_C, largest=False)
+                keep_C = pt.zeros_like(delta, dtype=pt.bool)
+                keep_C[idx] = True
+                keep = keep_A & keep_C  # both must accept
             else:
                 raise ValueError(f"unknown token_filter {token_filter}")
 
