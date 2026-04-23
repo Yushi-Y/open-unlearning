@@ -23,10 +23,10 @@ eval:
     handler: KLEvaluator
     dataset_name: wikitext
     disr_budget: 0.01
-  safe_eval:
-    handler: KLEvaluator
-    dataset_name: safe_eval  # like retain, but different split
-    disr_budget: null
+  # safe_eval:
+  #   handler: KLEvaluator
+  #   dataset_name: safe_eval  # like retain, but different split
+  #   disr_budget: null
   holdout_harmful:
     handler: ProbabilityEvaluator
     dataset_name: holdout_harmful
@@ -58,49 +58,49 @@ data:
     # filypo/beavertails-curated — only label_correct=True examples used
     - loader: beavertails_curated
       dataset_name: forget
-      range: [0, 385]
+      range: [0, 128]
       split: ${category}
       tokenizer: ${tokenizer_cfg}
 
     - loader: beavertails_curated
       dataset_name: relearn
-      range: [385, 770]
+      range: [128, 256]
       split: ${category}
       tokenizer: ${tokenizer_cfg}
 
     - loader: beavertails_curated
       dataset_name: holdout_harmful
-      range: [770, 898]
+      range: [500, 564]
       split: ${category}
       tokenizer: ${tokenizer_cfg}
 
     - loader: beavertails_fewshot_raw
       dataset_name: fewshot_raw
-      range: [385, 770]
+      range: [128, 256]
       split: ${category}
 
     - loader: beavertails_fewshot_raw
       dataset_name: holdout_raw
-      range: [770, 898]
+      range: [500, 564]
       split: ${category}
 
     - loader: beavertails_curated
       dataset_name: retain
-      range: [0, 1000]
+      range: [0, 256]
       split: safe
       tokenizer: ${tokenizer_cfg}
 
-    - loader: beavertails_curated
-      dataset_name: safe_eval
-      range: [1000, 1128]
-      split: safe
-      tokenizer: ${tokenizer_cfg}
+    # - loader: beavertails_curated
+    #   dataset_name: safe_eval
+    #   range: [1000, 1064]
+    #   split: safe
+    #   tokenizer: ${tokenizer_cfg}
 
     - loader: load_hf_and_tokenize
       dataset_name: wikitext
       hf_args:
         path: filypo/wikitext_16k
-      range: [0, 128]
+      range: [0, 64]
       tokenizer: ${tokenizer_cfg}
 
 relearning_trainer:
@@ -109,7 +109,7 @@ relearning_trainer:
   handler: FinetuneTrainer
   args:
     optim: adamw_8bit  # sgd | adamw_8bit | paged_adamw_8bit
-    learning_rate: 1e-5  # epochs are long, so use smaller learning rate
+    learning_rate: 7e-6
     lr_scheduler_type: constant
     report_to: wandb  # none|tensorboard|wandb|dvclive|comet_ml
     run_name: ${task_name}
@@ -128,7 +128,7 @@ hydra:
     storage: ${oc.env:OPTUNA_STORAGE_URL}
     study_name: ${task_name}
     direction: ${optimize_direction}
-    n_trials: 50
+    n_trials: 30
     n_jobs: 1
     sampler:
       _target_: optuna.samplers.TPESampler

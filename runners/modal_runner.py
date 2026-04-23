@@ -12,8 +12,9 @@ def download_models():
 
     for model in [
         # "allenai/OLMoE-1B-7B-0125",
-        "google/gemma-2-2b",
+        # "google/gemma-2-2b",
         # "meta-llama/Llama-3.2-3B",
+        "meta-llama/Llama-3.1-8B",
     ]:
         snapshot_download(model)
 
@@ -31,6 +32,7 @@ image = (
         # "https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.7.12/flash_attn-2.8.3+cu128torch2.10-cp311-cp311-linux_x86_64.whl"
         "https://github.com/mjun0812/flash-attention-prebuild-wheels/releases/download/v0.7.16/flash_attn-2.8.3+cu128torch2.9-cp311-cp311-linux_x86_64.whl"
     )
+    # things above, are equivalent to using docker filyp/open-unlearning:latest
     .env({"HF_HUB_ENABLE_HF_TRANSFER": "1"})
     .pip_install("hf_transfer")
     .run_function(download_models, secrets=[modal.Secret.from_dotenv()])
@@ -44,11 +46,13 @@ app = modal.App("open-unlearning", image=image)
 
 
 @app.function(
-    gpu="L40S",  # 48GB
+    # gpu="L40S",  # 48GB
     # gpu="A100-80GB",  # if needing 80GB
-    # gpu="H100",
-    # gpu="H200",
-    # gpu="B200",
+    # gpu="H100",  # 80GB
+    # gpu="RTX-PRO-6000",  # 96GB
+    gpu="H200",  # 141GB
+    # gpu="B200",  # 180GB
+    # B300 262GB, but can't be set in modal
     timeout=3 * 3600,
     secrets=[modal.Secret.from_dotenv()],
 )

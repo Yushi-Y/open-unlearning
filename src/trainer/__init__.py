@@ -17,6 +17,10 @@ from trainer.unlearn.wga import WGA
 from trainer.unlearn.pdu import PDU
 from trainer.unlearn.repcollapse.disrcollapse_trainer import DisrCollapse
 from trainer.unlearn.repcollapse.selective_trainer import SelectiveCollapse
+from trainer.unlearn.repcollapse.contrast_trainer import Contrast
+from trainer.unlearn.repcollapse.wgrad_svd_trainer import WGradSVD
+from trainer.unlearn.repcollapse.wgrad_svd_joint_trainer import WGradSVDJoint
+from trainer.unlearn.repselect_simple import RepSelectSimple
 import logging
 
 logger = logging.getLogger(__name__)
@@ -101,3 +105,7 @@ _register_trainer(WGA)
 _register_trainer(PDU)
 _register_trainer(DisrCollapse)
 _register_trainer(SelectiveCollapse)
+_register_trainer(Contrast)
+_register_trainer(WGradSVD)
+_register_trainer(WGradSVDJoint)
+_register_trainer(RepSelectSimple)
