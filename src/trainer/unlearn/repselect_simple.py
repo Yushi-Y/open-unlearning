@@ -9,10 +9,16 @@ from trainer.unlearn.base import UnlearnTrainer
 logging.basicConfig(level=logging.INFO)
 
 
-def _collapse(mat: pt.Tensor, eig_vec: pt.Tensor, eig_val: pt.Tensor) -> pt.Tensor:
+def _collapse(
+    mat: pt.Tensor, eig_vec: pt.Tensor, S: pt.Tensor, hard_soft: str
+) -> pt.Tensor:
     projected = mat @ eig_vec
-    proj_diff = projected - projected / eig_val.unsqueeze(-2)
-    return mat - proj_diff @ eig_vec.mT
+    if hard_soft == "hard":  # top N PCs projection
+        return mat - projected @ eig_vec.mT
+    else:  # Mahalanobis collapse
+        S = S / S.amin(dim=-1, keepdim=True)  # normalize eigenvalues so min=1
+        proj_diff = projected - projected / S.unsqueeze(-2)
+        return mat - proj_diff @ eig_vec.mT
 
 
 def _prep_batch(batch):
@@ -38,14 +44,27 @@ class RepSelectSimple(UnlearnTrainer):
     """
 
     def __init__(
-        self, n_pcs, lora_lr, distribution="forget", use_lora=True, *args, **kwargs
+        self,
+        n_pcs,
+        lora_lr,
+        distribution="forget",
+        collapse_on="both",
+        use_lora=True,
+        hard_soft="soft",
+        *args,
+        **kwargs,
     ):
         super().__init__(*args, **kwargs)
         self.n_pcs = n_pcs
         self.lora_lr = lora_lr
         self.distribution = distribution
+        self.collapse_on = collapse_on
         self.use_lora = use_lora
-        assert distribution in ["forget", "retain", "none"]
+        self.hard_soft = hard_soft
+        assert distribution in ["forget", "retain"]
+        assert collapse_on in ["act", "grad", "both", "none"]
+        assert hard_soft in ["hard", "soft"]
+        # note though, that for some MoE models act and grad dimensions may be transposed
 
         is_moe = any(hasattr(layer.mlp, "experts") for layer in self.model.model.layers)
         if is_moe:
@@ -72,10 +91,6 @@ class RepSelectSimple(UnlearnTrainer):
             ]
 
         self.lora_params = [p for n, p in self.model.named_parameters() if "lora_" in n]
-
-        if self.distribution == "none":
-            # when not collapsing, interventions are much more disrputive, so adjust LR to keep the sweeper range valid
-            self.args.learning_rate /= 500
 
     def train(self, resume_from_checkpoint=None, trial=None, ignore_keys_for_eval=None):
         self.model = self.accelerator.prepare(self.model)
@@ -126,14 +141,21 @@ class RepSelectSimple(UnlearnTrainer):
         # collapse
         for weight in self.base_trainable_params:
             grad = weight.grad.float()
-            if self.distribution != "none":
-                U, S, V = weight.USV
-                eig_val = S / S.amin(dim=-1, keepdim=True)
-                grad = _collapse(grad, V, eig_val)  # filter D_in side
-                grad = _collapse(grad.mT, U, eig_val).mT  # filter D_out side
+            U, S, V = weight.USV
+            if self.collapse_on in ["act", "both"]:
+                grad = _collapse(grad, V, S, self.hard_soft)  # filter D_in side
+            if self.collapse_on in ["grad", "both"]:
+                grad = _collapse(grad.mT, U, S, self.hard_soft).mT  # filter D_out side
             weight.filtered_grad = grad.to(weight.dtype)
             weight.grad = None
 
+        self._apply_unlearn_loop()
+
+        self.control = self.callback_handler.on_train_end(
+            self.args, self.state, self.control
+        )
+
+    def _apply_unlearn_loop(self):
         # perform dummy epochs, simply applying the filtered gradient
         self.evaluate()
         for epoch in range(self.args.num_train_epochs):
@@ -144,7 +166,3 @@ class RepSelectSimple(UnlearnTrainer):
             self.evaluate()
             if self.control.should_training_stop:
                 break
-
-        self.control = self.callback_handler.on_train_end(
-            self.args, self.state, self.control
-        )
