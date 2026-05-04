@@ -1,3 +1,4 @@
+import gc
 import logging
 import random
 
@@ -73,6 +74,7 @@ class FewShotBeaverTailsEvaluator:
     def evaluate(self, model, output_dir=None, overwrite=None, **kwargs):
         model.eval()
         model.zero_grad(set_to_none=True)
+        pt.cuda.empty_cache()
         trainer = kwargs["trainer"]
 
         samples = self._build_fewshot_samples()
@@ -91,7 +93,10 @@ class FewShotBeaverTailsEvaluator:
             probs.extend(r["prob"] for r in results)
             losses.extend(r["avg_loss"] for r in results)
 
-        return {
+        result = {
             f"{self.prefix}_prob": sum(probs) / len(probs),
             f"{self.prefix}_loss": sum(losses) / len(losses),
         }
+        gc.collect()
+        pt.cuda.empty_cache()
+        return result

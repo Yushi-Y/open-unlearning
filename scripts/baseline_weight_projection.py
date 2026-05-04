@@ -24,8 +24,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 import hydra
 import torch as pt
 from omegaconf import DictConfig, OmegaConf
+from torch.utils.data import DataLoader
 
 from data import get_collators, get_data
+from data.utils import prep_batch
 from model import get_model
 from trainer import load_trainer
 from trainer.utils import seed_everything
@@ -38,6 +40,31 @@ from interp_utils import (
 )
 
 N_UNLEARN_EPOCHS = 3
+ATTACK_STEPS = 50
+ATTACK_LR = 1e-5
+
+
+def simulate_attacker(model, W0, forget_dataset, collator):
+    """Run fine-tuning attack on forget data. Returns post-attack model state."""
+    model.load_state_dict({k: v.to(model.device) for k, v in W0.items()})
+    loader = DataLoader(forget_dataset, batch_size=4, collate_fn=collator, shuffle=True)
+    optimizer = pt.optim.SGD(model.parameters(), lr=1e-4)  # SGD avoids Adam's 2x memory overhead
+    model.train()
+    step = 0
+    for batch in loader:
+        if step >= ATTACK_STEPS:
+            break
+        optimizer.zero_grad()
+        output = model(**prep_batch(batch, model.device))
+        output.loss.backward()
+        optimizer.step()
+        step += 1
+        if step % 10 == 0:
+            print(f"    Attacker step {step}/{ATTACK_STEPS}, loss={output.loss.item():.4f}")
+    state = {k: v.cpu() for k, v in model.state_dict().items()}
+    model.load_state_dict({k: v.to(model.device) for k, v in W0.items()})
+    pt.cuda.empty_cache()
+    return state
 
 
 def run_method(cfg, method_name, model, W0, tokenizer, data, collator, template_args, n_epochs):
@@ -82,6 +109,17 @@ def run_method(cfg, method_name, model, W0, tokenizer, data, collator, template_
             if "lora_lr" in trainer_cfg.method_args.cfg:
                 del trainer_cfg.method_args.cfg.lora_lr
             OmegaConf.set_struct(trainer_cfg, True)
+    elif method_name == "RepSelectSimple":
+        OmegaConf.set_struct(trainer_cfg, False)
+        trainer_cfg.method_args = OmegaConf.create({
+            "n_pcs": 400,
+            "lora_lr": 0.01,
+            "distribution": "forget",
+            "collapse_on": "both",
+            "use_lora": True,
+            "hard_soft": "soft",
+        })
+        OmegaConf.set_struct(trainer_cfg, True)
 
     trainer, _ = load_trainer(
         trainer_cfg=trainer_cfg, model=model,
@@ -128,8 +166,15 @@ def main(cfg: DictConfig):
     collator = get_collators(cfg.collator, tokenizer=tokenizer)
 
     # --- 4. Run each method ---
-    methods = ["GradDiff", "NPO", "SimNPO", "RMU", "UNDIAL", "RepCollapse"]
+    methods = ["GradDiff", "NPO", "SimNPO", "RMU", "UNDIAL", "RepCollapse", "RepSelectSimple"]
     method_states = {}
+
+    # Fine-tuning attacker (not a trainer, runs directly)
+    print(f"\n{'=' * 60}")
+    print("Running fine-tuning attacker (50 steps)...")
+    print(f"{'=' * 60}")
+    method_states["Attacker"] = simulate_attacker(model, W0, data["train"].forget, collator)
+
     for method in methods:
         print(f"\n{'=' * 60}")
         print(f"Running {method}...")

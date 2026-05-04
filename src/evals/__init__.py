@@ -31,6 +31,8 @@ def get_evaluators(eval_cfgs: DictConfig, **kwargs):
     evaluators = {}
     # note: the eval_name is not used anywhere - could be removed to simplify the config
     for eval_name, eval_cfg in eval_cfgs.items():
+        if eval_cfg is None:
+            continue  # allows disabling via CLI: eval.<name>=null
         evaluators[eval_name] = get_evaluator(eval_name, eval_cfg, **kwargs)
     return evaluators
 

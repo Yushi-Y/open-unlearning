@@ -80,14 +80,16 @@ def main(cfg: DictConfig):
                 OmegaConf.to_container(cfg.trainer, resolve=True), allow_val_change=True
             )
 
+    is_main = trainer.is_world_process_zero()
+
     # save last valid model (before any metric broke)
     comm_dir = Path(cfg.paths.tmp_comm_dir)
-    if trainer.last_valid_model_state is not None and comm_dir.exists():
+    if is_main and trainer.last_valid_model_state is not None and comm_dir.exists():
         model.load_state_dict(trainer.last_valid_model_state)
         model.save_pretrained(comm_dir / "last_valid_model")
 
     # Save per-epoch eval history (survives tmp_comm cleanup via output_dir)
-    if trainer.eval_results_history:
+    if is_main and trainer.eval_results_history:
         import json
         history_dir = Path(trainer_args.output_dir) / "eval_histories"
         history_dir.mkdir(parents=True, exist_ok=True)
@@ -96,7 +98,7 @@ def main(cfg: DictConfig):
         history_path.write_text(json.dumps(trainer.eval_results_history, indent=2))
 
     # * get the final score (if defined), and save to file for the pipeline script
-    if trainer.eval_results_history and cfg.get("metric_to_optimize"):
+    if is_main and trainer.eval_results_history and cfg.get("metric_to_optimize"):
         target_metric = cfg.metric_to_optimize
         if mode == "relearn":
             # relearning optimizes in the opposite direction to unlearning and the sweeper

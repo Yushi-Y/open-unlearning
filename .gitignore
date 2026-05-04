@@ -1,6 +1,9 @@
 # custom .gitignore
 submit.py
 !src/data/__init__.py
+Vdata_space_release.md
+overleaf_disco/
+overleaf_disco
 logs/
 unity/
 src/data/test.py

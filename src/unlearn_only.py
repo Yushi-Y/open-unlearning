@@ -38,15 +38,21 @@ def main(cfg: DictConfig):
             os.environ["WANDB_PROJECT"] = os.environ["UNL_WANDB_PROJECT"]
         unlearning_cfg_path = comm_dir / "unlearning_cfg.yaml"
         OmegaConf.save(cfg, unlearning_cfg_path)
-        subprocess.run(
-            [
-                "python3",
+        nproc = int(os.environ.get("NPROC_PER_NODE", "1"))
+        if nproc > 1:
+            cmd = [
+                "torchrun", f"--nproc_per_node={nproc}", "--master_port=29501",
                 "src/train.py",
                 f"--config-path={comm_dir.absolute()}",
                 "--config-name=unlearning_cfg.yaml",
-            ],
-            check=True,
-        )
+            ]
+        else:
+            cmd = [
+                "python3", "src/train.py",
+                f"--config-path={comm_dir.absolute()}",
+                "--config-name=unlearning_cfg.yaml",
+            ]
+        subprocess.run(cmd, check=True)
 
         # Return the optimisation metric from the last valid eval
         robustness = float(open(comm_dir / "robustness.txt").read())

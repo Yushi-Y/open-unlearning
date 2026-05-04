@@ -1,3 +1,4 @@
+import gc
 import logging
 
 import lm_eval
@@ -50,6 +51,7 @@ class FewShotWMDPEvaluator:
     def evaluate(self, model, output_dir=None, overwrite=None, **kwargs):
         model.eval()
         model.zero_grad(set_to_none=True)
+        pt.cuda.empty_cache()
         tokenizer = kwargs["tokenizer"]
         trainer = kwargs["trainer"]
 
@@ -67,7 +69,11 @@ class FewShotWMDPEvaluator:
             log_samples=True,
         )
 
-        return {
+        result = {
             f"{self.prefix}_acc_t0": _get_temperature_0_accuracy(lm_eval_results),
             f"{self.prefix}_acc_t1": _get_temperature_1_accuracy(lm_eval_results),
         }
+        del lm, lm_eval_results
+        gc.collect()
+        pt.cuda.empty_cache()
+        return result

@@ -18,8 +18,12 @@ from trainer.unlearn.pdu import PDU
 from trainer.unlearn.repcollapse.disrcollapse_trainer import DisrCollapse
 from trainer.unlearn.repcollapse.selective_trainer import SelectiveCollapse
 from trainer.unlearn.repcollapse.contrast_trainer import Contrast
-from trainer.unlearn.repcollapse.wgrad_svd_trainer import WGradSVD
-from trainer.unlearn.repcollapse.wgrad_svd_joint_trainer import WGradSVDJoint
+try:
+    from trainer.unlearn.repcollapse.wgrad_svd_trainer import WGradSVD
+    from trainer.unlearn.repcollapse.wgrad_svd_joint_trainer import WGradSVDJoint
+    _wgrad_available = True
+except ImportError:
+    _wgrad_available = False
 from trainer.unlearn.repselect_simple import RepSelectSimple
 from trainer.unlearn.repselect_adaptive import RepSelectAdaptive
 import logging
@@ -107,7 +111,9 @@ _register_trainer(PDU)
 _register_trainer(DisrCollapse)
 _register_trainer(SelectiveCollapse)
 _register_trainer(Contrast)
-_register_trainer(WGradSVD)
-_register_trainer(WGradSVDJoint)
+if _wgrad_available:
+    _register_trainer(WGradSVD)
+    _register_trainer(WGradSVDJoint)
 _register_trainer(RepSelectSimple)
 _register_trainer(RepSelectAdaptive)
+TRAINER_REGISTRY["RepCollapse"] = SelectiveCollapse  # alias after rename
