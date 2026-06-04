@@ -2,8 +2,50 @@
 submit.py
 !src/data/__init__.py
 Vdata_space_release.md
-overleaf_disco/
-overleaf_disco
+# Overleaf sync dirs
+overleaf*/
+
+# DISCO
+*disco*
+*DISCO*
+
+# Autoresearch artifacts
+autoresearch*
+autoresearch-*
+plot_autoresearch.py
+extract_results.sh
+
+# Experiment result docs / temp notes
+experiment_results.md
+leaderboard.md
+new_method_from_interp.md
+filip_new_*.md
+new_overview.png
+scripts/*.md
+
+# Optuna databases
+*.db
+
+# One-off experiment run scripts
+scripts/run_iter*.sh
+scripts/run_exp*.sh
+scripts/run_gpu[0-9]*.sh
+scripts/run_rerun*.sh
+scripts/run_posthoc_eval.sh
+scripts/run_fill_gaps*.sh
+scripts/run_interp*.sh
+scripts/run_noatk*.sh
+scripts/run_npo*.sh
+scripts/run_panel_c.sh
+scripts/run_qwen*.sh
+scripts/run_rmu_baselines.sh
+scripts/run_simple_unlearn_chain.sh
+scripts/run_table4*.sh
+scripts/run_bt_repselect_simple.sh
+scripts/run_adaptive_unlearn_chain.sh
+scripts/run_optuna_fewshot_baselines.sh
+scripts/run_fewshot_v3_llama8b*.sh
+scripts/run_fewshot_llama_gpu3.sh
 logs/
 unity/
 src/data/test.py
